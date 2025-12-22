@@ -11,8 +11,8 @@ import {
 
 const router = Router();
 
-// Create leave request (student only)
-router.post("/", auth, authorizeRoles("student"), createLeaveRequest);
+// Create leave request
+router.post("/", auth, createLeaveRequest);
 
 // Get all leave requests
 router.get("/", auth, getAllLeaveRequests);

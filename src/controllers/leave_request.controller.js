@@ -1,9 +1,8 @@
 import LeaveRequest from "../models/leave_request.model.js";
 import Student from "../models/student_profile.model.js";
-import User from "../models/user.model.js";
 import logger from "../utils/logger.js";
 
-// Create leave request (student only)
+// Create leave request
 const createLeaveRequest = async (req, res) => {
   try {
     const { from_date, to_date, destination, reason } = req.body;
@@ -15,11 +14,22 @@ const createLeaveRequest = async (req, res) => {
         message: "From date and to date are required"
       });
     }
+    if (!destination?.trim() || !reason?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Destination and reason are required"
+      });
+    }
+    //data normalization to DD-MM-YYYY
+    const normalizeDate = (dateStr) => {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    };
+    const fromDate = normalizeDate(from_date)
+    const toDate = normalizeDate(to_date)
 
-    const fromDate = new Date(from_date);
-    const toDate = new Date(to_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // const fromDate = new Date(from_date); //bcz these wil create utc error got manual handles
+    // const toDate = new Date(to_date);
 
     // Validate dates
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
@@ -28,6 +38,9 @@ const createLeaveRequest = async (req, res) => {
         message: "Invalid date format"
       });
     }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     if (fromDate < today) {
       return res.status(400).json({
@@ -39,30 +52,17 @@ const createLeaveRequest = async (req, res) => {
     if (toDate < fromDate) {
       return res.status(400).json({
         success: false,
-        message: "To date must be after from date"
+        message: "To date must be same as or after from date"
+
       });
     }
-
-    // Check if student profile exists (optimized - single DB call)
-    const student = await Student.findOne({ user_id: req.user._id });
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found. Please create your profile first"
-      });
-    }
-
+    console.log("stuent_id", req.user.student)
     // Check for overlapping leave requests
     const overlappingLeave = await LeaveRequest.findOne({
-      student_id: student._id,
+      student_id: req.user.student._id,
       status: { $in: ["pending", "approved"] },
-      $or: [
-        {
-          from_date: { $lte: toDate },
-          to_date: { $gte: fromDate }
-        }
-      ]
+      from_date: { $lte: toDate },
+      to_date: { $gte: fromDate }
     });
 
     if (overlappingLeave) {
@@ -74,7 +74,7 @@ const createLeaveRequest = async (req, res) => {
 
     // Create leave request
     const leaveRequest = await LeaveRequest.create({
-      student_id: student._id,
+      student_id: req.user.student._id,
       from_date: fromDate,
       to_date: toDate,
       destination: destination?.trim(),
@@ -109,7 +109,7 @@ const createLeaveRequest = async (req, res) => {
 // Get all leave requests (with filters)
 const getAllLeaveRequests = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, student_id } = req.query;
+    const { page = 1, limit = 10, status, student_user_id } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build query
@@ -117,21 +117,21 @@ const getAllLeaveRequests = async (req, res) => {
 
     // Students can only see their own requests
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student) {
-        return res.status(404).json({
-          success: false,
-          message: "Student profile not found"
-        });
-      }
-      query.student_id = student._id;
-    } else if (student_id) {
-      // Admin/staff can filter by student
-      const student = await Student.findOne({ user_id: student_id });
+      query.student_id = req.user.student._id;
+    }
+    if (
+      (req.user.role === "admin" || req.user.role === "staff") &&
+      student_user_id
+    ) {
+      const student = await Student.findOne(
+        { user_id: student_user_id },
+        "_id"
+      );
       if (student) {
         query.student_id = student._id;
       }
     }
+
 
     if (status && ["pending", "approved", "rejected"].includes(status)) {
       query.status = status;
@@ -156,6 +156,7 @@ const getAllLeaveRequests = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: "Leave requests fetched successfully",
       leaveRequests,
       pagination: {
         page: parseInt(page),
@@ -163,7 +164,6 @@ const getAllLeaveRequests = async (req, res) => {
         total,
         pages: Math.ceil(total / parseInt(limit))
       },
-      message: "Leave requests fetched successfully"
     });
 
   } catch (error) {
@@ -183,7 +183,7 @@ const getLeaveRequest = async (req, res) => {
     const leaveRequest = await LeaveRequest.findById(id)
       .populate({
         path: "student_id",
-        select: "sid branch room_number block",
+        select: "sid branch room_number block user_id",
         populate: {
           path: "user_id",
           select: "full_name email phone"
@@ -199,15 +199,15 @@ const getLeaveRequest = async (req, res) => {
     }
 
     // Check access: students can only see their own requests
-    if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student || leaveRequest.student_id._id.toString() !== student._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied"
-        });
-      }
+    if (req.user.role === "student" &&
+      leaveRequest.student_id.user_id._id.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied"
+      });
     }
+
 
     return res.status(200).json({
       success: true,
@@ -217,7 +217,7 @@ const getLeaveRequest = async (req, res) => {
 
   } catch (error) {
     logger.error("GET LEAVE REQUEST", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
@@ -246,7 +246,19 @@ const updateLeaveRequestStatus = async (req, res) => {
       });
     }
 
-    const leaveRequest = await LeaveRequest.findById(id);
+    const leaveRequest = await LeaveRequest.findOneAndUpdate({ _id: id, status: "pending" }, {
+      status,
+      approved_by: req.user._id
+    }, {
+      new: true
+    }).populate({
+      path: "student_id",
+      select: "sid branch room_number block",
+      populate: {
+        path: "user_id",
+        select: "full_name email phone"
+      }
+    }).populate("approved_by", "full_name email role");;
 
     if (!leaveRequest) {
       return res.status(404).json({
@@ -254,30 +266,6 @@ const updateLeaveRequestStatus = async (req, res) => {
         message: "Leave request not found"
       });
     }
-
-    // Check if already processed
-    if (leaveRequest.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: `Leave request has already been ${leaveRequest.status}`
-      });
-    }
-
-    // Update status
-    leaveRequest.status = status;
-    leaveRequest.approved_by = req.user._id;
-    await leaveRequest.save();
-
-    // Populate data for response
-    await leaveRequest.populate({
-      path: "student_id",
-      select: "sid branch room_number block",
-      populate: {
-        path: "user_id",
-        select: "full_name email phone"
-      }
-    });
-    await leaveRequest.populate("approved_by", "full_name email role");
 
     return res.status(200).json({
       success: true,
@@ -287,7 +275,7 @@ const updateLeaveRequestStatus = async (req, res) => {
 
   } catch (error) {
     logger.error("UPDATE LEAVE REQUEST STATUS", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
@@ -317,7 +305,7 @@ const deleteLeaveRequest = async (req, res) => {
     }
 
     // Check access
-    if (req.user.role === "student") {
+    /*if (req.user.role === "student") {
       const student = await Student.findOne({ user_id: req.user._id });
       if (!student || leaveRequest.student_id.toString() !== student._id.toString()) {
         return res.status(403).json({
@@ -333,9 +321,36 @@ const deleteLeaveRequest = async (req, res) => {
           message: "You can only delete pending leave requests"
         });
       }
+    }*/
+    // STUDENT RULES
+    if (req.user.role === "student") {
+      // student already populated in auth middleware
+      if (!req.user.student) {
+        return res.status(403).json({
+          success: false,
+          message: "Student profile not found"
+        });
+      }
+
+      // Must be own leave request
+      if (leaveRequest.student_id.toString() !== req.user.student._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied"
+        });
+      }
+
+      // Can delete only pending
+      if (leaveRequest.status !== "pending") {
+        return res.status(400).json({
+          success: false,
+          message: "You can only delete pending leave requests"
+        });
+      }
     }
 
-    await LeaveRequest.findByIdAndDelete(id);
+    // await LeaveRequest.findByIdAndDelete(id);
+    await leaveRequest.deleteOne();
 
     return res.status(200).json({
       success: true,
@@ -344,7 +359,7 @@ const deleteLeaveRequest = async (req, res) => {
 
   } catch (error) {
     logger.error("DELETE LEAVE REQUEST", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,

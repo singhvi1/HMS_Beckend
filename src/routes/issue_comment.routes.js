@@ -16,8 +16,9 @@ router.post("/", auth, createComment);
 // Get all comments for an issue
 router.get("/issue/:issue_id", auth, getIssueComments);
 
-// Get single comment
+// Get single issues  comment
 router.get("/:id", auth, getComment);
+//NOTE dont change order /issue/:issue_id and /:id
 
 // Update comment
 router.patch("/:id", auth, updateComment);

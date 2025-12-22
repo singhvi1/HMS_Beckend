@@ -2,7 +2,7 @@ import Issue from "../models/issue.model.js";
 import Student from "../models/student_profile.model.js";
 import logger from "../utils/logger.js";
 
-// Create issue (student only)
+// Create issue
 const createIssue = async (req, res) => {
   try {
     const { title, description, category } = req.body;
@@ -38,6 +38,7 @@ const createIssue = async (req, res) => {
 
     // Validate category
     const validCategories = ["drinking-water", "plumbing", "furniture", "electricity", "other"];
+
     if (category && !validCategories.includes(category)) {
       return res.status(400).json({
         success: false,
@@ -96,6 +97,7 @@ const getAllIssues = async (req, res) => {
 
     // Build query
     const query = {};
+    console.log(query)
 
     // Students can only see their own issues
     if (req.user.role === "student") {
@@ -123,7 +125,7 @@ const getAllIssues = async (req, res) => {
         { description: new RegExp(search, "i") }
       ];
     }
-
+    console.log("FINAL QUERY:", JSON.stringify(query, null, 2));
     // Optimized: Get issues with populated student data in single query
     const issues = await Issue.find(query)
       .populate({
@@ -202,7 +204,7 @@ const getIssue = async (req, res) => {
 
   } catch (error) {
     logger.error("GET ISSUE", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
@@ -262,7 +264,7 @@ const updateIssueStatus = async (req, res) => {
 
   } catch (error) {
     logger.error("UPDATE ISSUE STATUS", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
@@ -367,7 +369,7 @@ const updateIssue = async (req, res) => {
 
   } catch (error) {
     logger.error("UPDATE ISSUE", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
@@ -424,7 +426,7 @@ const deleteIssue = async (req, res) => {
 
   } catch (error) {
     logger.error("DELETE ISSUE", error);
-    
+
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,

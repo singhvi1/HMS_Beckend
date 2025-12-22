@@ -107,22 +107,32 @@ const createStudentProfile = async (req, res) => {
 // Get student profile by user ID
 const getStudentProfile = async (req, res) => {
   try {
-    const user_id = req.user._id
+    // const user_id = req.user._id
+    console.log("DEBUG req.user:", req.user);
+    //if req.user.role-> student -> /:id -> req.user._id
+    //if req.user.role-> admin/staff -> /:id -> req.params
+    let targetUserId = req.params.user_id || req.user._id;
+    console.log(targetUserId)
+    console.log("Target user id check ")
 
-    // If user_id is "me", use authenticated user's ID
-    const targetUserId = user_id === "me" ? req.user._id : user_id;
+    /*if (req.user.role === "student") {
+      targetUserId = req.user._id;
 
-    // Check if requesting own profile or admin/staff
-    if (user_id !== "me" && req.user.role !== "admin" && req.user.role !== "staff") {
+    } else if (req.user.role === "admin" || req.user.role === "staff") {
+      targetUserId = req.params.user_id || req.user._id;  //?if we want to show staff profile too
+    } else {
+
       return res.status(403).json({
         success: false,
         message: "Access denied"
       });
-    }
+    }*/
+
 
     const student = await Student.findOne({ user_id: targetUserId })
       .populate("user_id", "full_name email phone role status");
 
+    //? we need to add staff too if we need 
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -208,10 +218,11 @@ const getAllStudents = async (req, res) => {
   }
 };
 
-// Update student profile
+// Update student profile by student(some) and admin(all);
 const updateStudentProfile = async (req, res) => {
   try {
-    const user_id = req.user._id
+    const { user_id } = req.params;
+
     const {
       permanent_address,
       guardian_name,
@@ -221,18 +232,8 @@ const updateStudentProfile = async (req, res) => {
       block
     } = req.body;
 
-    // Check if user is updating own profile or admin/staff
-    const targetUserId = user_id === "me" ? req.user._id : user_id;
 
-    if (user_id !== "me" && req.user.role !== "admin" && req.user.role !== "staff") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied"
-      });
-    }
-
-    const student = await Student.findOne({ user_id: targetUserId });
-
+    const student = await Student.findOne({ user_id });
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -240,21 +241,76 @@ const updateStudentProfile = async (req, res) => {
       });
     }
 
+
+    const isAdminRoute = req.originalUrl.includes("/edit");
+    const isAdminUser = ["admin", "staff"].includes(req.user.role);
+
+    //means if login student doest not match with /:user_id
+    if (!isAdminRoute && req.user._id.toString() != user_id) {
+      return res.status(403).json({
+        success: false,
+        message: "You can update only your own profile"
+      });
+    }
+
+    if (isAdminRoute && !isAdminUser) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin privileges required"
+      });
+    }
+
+
+
+    const allowedFields = isAdminRoute
+      ? [
+        "permanent_address",
+        "guardian_name",
+        "guardian_contact",
+        "branch",
+        "room_number",
+        "block"
+      ]
+      : [
+        "permanent_address",
+        "guardian_name",
+      ];
+
+    const hasRealChange = allowedFields.some(field => {
+      if (req.body[field] === undefined) return false;
+      const newValue =
+        typeof req.body[field] === "string"
+          ? req.body[field].trim()
+          : req.body[field];
+      return newValue != student[field];
+    });
+
+    if (!hasRealChange) {
+      return res.status(400).json({
+        success: false,
+        message: "No changes detected"
+      });
+    }
+
+
     // Validate guardian contact if provided
-    if (guardian_contact && (guardian_contact.toString().length !== 10 || !/^\d+$/.test(guardian_contact.toString()))) {
+    if (isAdminRoute && guardian_contact !== undefined && (guardian_contact.toString().length !== 10 ||
+      !/^\d+$/.test(guardian_contact.toString()))) {
+
       return res.status(400).json({
         success: false,
         message: "Guardian contact must be 10 digits"
       });
     }
 
-    // Update fields
-    if (permanent_address) student.permanent_address = permanent_address.trim();
-    if (guardian_name) student.guardian_name = guardian_name.trim();
-    if (guardian_contact) student.guardian_contact = guardian_contact;
-    if (branch) student.branch = branch.trim();
-    if (room_number) student.room_number = room_number;
-    if (block) student.block = block.toLowerCase().trim();
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        student[field] =
+          typeof req.body[field] === "string"
+            ? req.body[field].trim()
+            : req.body[field];
+      }
+    }
 
     await student.save();
     await student.populate("user_id", "full_name email phone role status");
@@ -277,7 +333,7 @@ const updateStudentProfile = async (req, res) => {
 // Delete student profile (admin only)
 const deleteStudentProfile = async (req, res) => {
   try {
-    const user_id = req.user._id
+    const { user_id } = req.paramas;
 
     const student = await Student.findOneAndDelete({ user_id });
 

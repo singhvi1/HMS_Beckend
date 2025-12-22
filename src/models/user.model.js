@@ -24,6 +24,15 @@ const userSchema = new Schema(
   },
   { timestamps: true }
 );
+userSchema.virtual("student", {
+  ref: "Student",
+  localField: "_id",
+  foreignField: "user_id",
+  justOne: true
+});
+
+userSchema.set("toJSON", { virtuals: true });
+userSchema.set("toObject", { virtuals: true });
 
 userSchema.methods.generateAccessToken = function () {
   const user = this

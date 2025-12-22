@@ -71,7 +71,7 @@ const login = async (req, res) => {
   }
 };
 
-const logout = async (req, res) => {
+const logout = async (_req, res) => {
   try {
     return res
       .clearCookie("accessToken", {
@@ -188,7 +188,7 @@ const addUser = async (req, res) => {
 
 const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    const user = await User.findById(req.user._id).select("-password").populate("student");
     
     if (!user) {
       return res.status(404).json({

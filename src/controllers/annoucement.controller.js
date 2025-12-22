@@ -136,7 +136,7 @@ const getAnnouncement = async (req, res) => {
   }
 };
 
-// Update announcement (admin/staff only, or creator)
+// Update/create announcement (admin/staff only, or creator)
 const updateAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
@@ -150,16 +150,6 @@ const updateAnnouncement = async (req, res) => {
         message: "Announcement not found"
       });
     }
-
-    // Check if user is creator or admin/staff
-    if (announcement.created_by.toString() !== req.user._id.toString() && 
-        req.user.role !== "admin" && req.user.role !== "staff") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. You can only update your own announcements"
-      });
-    }
-
     // Update fields
     if (title) {
       if (title.trim().length < 3) {
@@ -224,16 +214,6 @@ const deleteAnnouncement = async (req, res) => {
         message: "Announcement not found"
       });
     }
-
-    // Check if user is creator or admin/staff
-    if (announcement.created_by.toString() !== req.user._id.toString() && 
-        req.user.role !== "admin" && req.user.role !== "staff") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. You can only delete your own announcements"
-      });
-    }
-
     await Announcement.findByIdAndDelete(id);
 
     return res.status(200).json({
