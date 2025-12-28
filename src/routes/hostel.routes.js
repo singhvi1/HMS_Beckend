@@ -12,7 +12,7 @@ router.get("/", auth, authorizeRoles("admin"), getAllHostels);
 
 router.get("/:id", auth, authorizeRoles("admin"), getHostelById);
 
-router.patch("/:id",  updateHostel);
+router.patch("/:id",auth, authorizeRoles("admin"),  updateHostel);
 
 router.patch("/:id/toggle", auth, authorizeRoles("admin"), toggleHostelStatus);
 
