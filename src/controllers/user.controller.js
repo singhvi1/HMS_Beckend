@@ -92,6 +92,7 @@ const logout = async (_req, res) => {
 };
 
 const addUser = async (req, res) => {
+  console.log("this is body ",req.body)
   try {
     const { full_name, email, phone, password, role } = req.body;
     
@@ -113,10 +114,10 @@ const addUser = async (req, res) => {
     }
 
     // Phone validation
-    if (phone.length !== 10 || !/^\d+$/.test(phone)) {
+    if (phone.length >=10 || !/^\d+$/.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: "Phone number must be 10 digits"
+        message: "Phone number must be less than equal 12 digits"
       });
     }
 

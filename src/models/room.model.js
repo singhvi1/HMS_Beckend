@@ -22,11 +22,18 @@ const roomSchema = new Schema(
         },
 
         // Capacity control
+        occupancy: {
+            type: Number,           // 1, 2, 3
+            required: true,
+            default: 0,
+            max: 3
+        },
         capacity: {
             type: Number,           // 1, 2, 3
             required: true,
             min: 1,
-            default: 1
+            default: 1,
+            max: 3,
         },
 
         // Admin control
@@ -48,10 +55,10 @@ const roomSchema = new Schema(
 roomSchema.index({ block: 1, room_number: 1 }, { unique: true });
 
 roomSchema.virtual("occupants", {
-  ref: "Student",
-  localField: "_id",
-  foreignField: "room_id",
-  justOne: false
+    ref: "Student",
+    localField: "_id",
+    foreignField: "room_id",
+    justOne: false
 });
 
 roomSchema.set("toJSON", { virtuals: true });

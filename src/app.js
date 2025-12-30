@@ -35,11 +35,11 @@ app.post("/api/v1/logout", auth, logout);
 app.get("/api/v1/home", auth, getAllAnnouncements);
 
 // Routes
-app.use("/api/v1/rooms", roomRoutes);
 app.use("/api/v1/admin/hostel", hostelRoutes);
 app.use("/api/v1/home/announcements", announcementRoutes);
-app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/students", studentRoutes);
+app.use("/api/v1/rooms", roomRoutes);
+app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/leave-requests", leaveRequestRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/issues", issueRoutes);

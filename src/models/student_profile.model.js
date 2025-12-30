@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Schema, model } from "mongoose";
 
 const studentSchema = new Schema(
@@ -6,21 +7,21 @@ const studentSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index  :true
+      index: true
     },
     room_id: {
       type: Schema.Types.ObjectId,
       ref: "Room",
-      default: null
+      required: true,
     },
-    sid:{
+    sid: {
       type: String,
       unique: true,
       required: true,
       minLength: 8,
       maxLength: 8,
     },
-    permanent_address:{
+    permanent_address: {
       type: String,
       trim: true,
       required: true,
@@ -44,16 +45,16 @@ const studentSchema = new Schema(
       required: true,
       trim: true,
     },
-    room_number:{
+    room_number: {
       type: Number,
       required: true,
     },
-    block:{
+    block: {
       type: String,
       required: true,
       lowercase: true,
-    },  
-    room_out:{
+    },
+    room_out: {
       type: Date,
     }
   },
