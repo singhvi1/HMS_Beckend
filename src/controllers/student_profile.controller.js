@@ -24,7 +24,7 @@ const createUserStudent = async (req, res) => {
       room_number,
       block,
     } = req.body;
-//TODO : romove room_number and block 
+    //TODO : romove room_number and block 
     if (req.user.role !== "admin") {
       await session.abortTransaction();
       session.endSession();
@@ -134,7 +134,7 @@ const createUserStudent = async (req, res) => {
           {
             block: block.toLowerCase(),
             room_number,
-            capacity: 3,
+            capacity: 2,
             occupancy: 1
           }
         ],
@@ -163,7 +163,7 @@ const createUserStudent = async (req, res) => {
     session.endSession();
 
     await student.populate([
-      { path: "user_id", select: "full_name email phone role" },
+      { path: "user_id", select: "full_name email phone role status" },
       { path: "room_id", select: "block room_number capacity  occupancy" }
     ]);
 
@@ -192,7 +192,6 @@ const createUserStudent = async (req, res) => {
 
 }
 
-// Create student profile
 const createStudentProfile = async (req, res) => {
   try {
     const {
@@ -302,8 +301,6 @@ const getStudentProfile = async (req, res) => {
     //if req.user.role-> student -> /:id -> req.user._id
     //if req.user.role-> admin/staff -> /:id -> req.params
     let targetUserId = req.params.user_id || req.user._id;
-    console.log(targetUserId)
-    console.log("Target user id check ")
 
     /*if (req.user.role === "student") {
       targetUserId = req.user._id;
@@ -320,7 +317,10 @@ const getStudentProfile = async (req, res) => {
 
 
     const student = await Student.findOne({ user_id: targetUserId })
-      .populate("user_id", "full_name email phone role status");
+      .populate([
+        { path: "user_id", select: "full_name email phone role" },
+        { path: "room_id", select: "block room_number capacity  occupancy" }
+      ])
 
     //? we need to add staff too if we need 
     if (!student) {
@@ -380,7 +380,10 @@ const getAllStudents = async (req, res) => {
 
     // Optimized: Get students with populated user data in single query
     const students = await Student.find(query)
-      .populate("user_id", "full_name email phone role status")
+      .populate([
+        { path: "user_id", select: "full_name email phone role status" },
+        { path: "room_id", select: "block room_number capacity  occupancy" }
+      ])
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -503,7 +506,10 @@ const updateStudentProfile = async (req, res) => {
     }
 
     await student.save();
-    await student.populate("user_id", "full_name email phone role status");
+    await student.populate([
+      { path: "user_id", select: "full_name email phone role" },
+      { path: "room_id", select: "block room_number capacity  occupancy" }
+    ]);
 
     return res.status(200).json({
       success: true,

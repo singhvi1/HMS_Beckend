@@ -3,89 +3,90 @@ import logger from "../utils/logger.js";
 
 
 export const createRoom = async (req, res) => {
-    try {
-        const { room_number, block, floor, occupancy, yearly_rent=8500 } = req.body;
+  try {
+    const { room_number, block, floor, yearly_rent = 75000, capacity = 1 } = req.body;
 
-        if (!room_number || !block || floor === undefined) {
-            logger.warn("CREATE_ROOM: Validation failed", { body: req.body });
+    if (!room_number || !block) {
+      logger.warn("CREATE_ROOM: Validation failed", { body: req.body });
 
-            return res.status(400).json({
-                success: false,
-                message: "room_number, block and floor are required"
-            });
-        }
-
-        const roomExists = await Room.findOne({ block, room_number });
-
-        if (roomExists) {
-            logger.warn("CREATE_ROOM: Room already exists", { block, room_number });
-
-            return res.status(409).json({
-                success: false,
-                message: "Room already exists in this block"
-            });
-        }
-
-        const room = await Room.create({
-            room_number,
-            block,
-            floor,
-            occupancy,
-            yearly_rent
-        });
-
-        logger.info("CREATE_ROOM: Room created", {
-            room_id: room._id,
-            block,
-            room_number
-        });
-
-        return res.status(201).json({
-            success: true,
-            data: room
-        });
-
-    } catch (error) {
-        logger.error("CREATE_ROOM: Error creating room", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to create room"
-        });
+      return res.status(400).json({
+        success: false,
+        message: "room_number and block  are required"
+      });
     }
+
+    const roomExists = await Room.findOne({ block, room_number });
+
+    if (roomExists) {
+      logger.warn("CREATE_ROOM: Room already exists", { block, room_number });
+
+      return res.status(409).json({
+        success: false,
+        message: "Room already exists in this block"
+      });
+    }
+
+    const room = await Room.create({
+      room_number,
+      block: block?.toLowerCase(),
+      floor,
+      capacity,
+      yearly_rent,
+      occupancy: 0,
+    });
+
+    logger.info("CREATE_ROOM: Room created", {
+      room_id: room._id,
+      block,
+      room_number
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: room,
+    });
+
+  } catch (error) {
+    logger.error("CREATE_ROOM: Error creating room", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create room"
+    });
+  }
 };
 
 export const getAllRooms = async (req, res) => {
-    try {
-        const { block, floor, is_active } = req.query;
+  try {
+    const { block, floor, is_active } = req.query;
 
-        const filter = {};
+    const filter = {};
 
-        if (block) filter.block = block;
-        if (floor !== undefined) filter.floor = Number(floor);
-        if (is_active !== undefined) filter.is_active = is_active === "true";
+    if (block) filter.block = block;
+    if (floor !== undefined) filter.floor = Number(floor);
+    if (is_active !== undefined) filter.is_active = is_active === "true";
 
-        const rooms = await Room.find(filter).sort({ block: 1, room_number: 1 });
+    const rooms = await Room.find(filter).sort({ block: 1, room_number: 1 });
 
-        logger.info("GET_ALL_ROOMS: Rooms fetched", {
-            count: rooms.length,
-            filter
-        });
+    logger.info("GET_ALL_ROOMS: Rooms fetched", {
+      count: rooms.length,
+      filter
+    });
 
-        return res.status(200).json({
-            success: true,
-            count: rooms.length,
-            data: rooms
-        });
+    return res.status(200).json({
+      success: true,
+      count: rooms.length,
+      data: rooms
+    });
 
-    } catch (error) {
-        logger.error("GET_ALL_ROOMS: Error fetching rooms", error);
+  } catch (error) {
+    logger.error("GET_ALL_ROOMS: Error fetching rooms", error);
 
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch rooms"
-        });
-    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch rooms"
+    });
+  }
 };
 
 export const getRoomById = async (req, res) => {

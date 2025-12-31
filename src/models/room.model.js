@@ -2,50 +2,48 @@ import { Schema, model } from "mongoose";
 
 const roomSchema = new Schema(
     {
-        // Identity
+
         room_number: {
-            type: String,           // "203"
+            type: String,
             required: true,
             trim: true
         },
 
         block: {
-            type: String,           // "A", "B"
+            type: String,
             required: true,
             lowercase: true,
             trim: true
         },
 
         floor: {
-            type: Number,           // 2
+            type: Number,
             min: 0,
         },
 
-        // Capacity control
         occupancy: {
-            type: Number,           // 1, 2, 3
+            type: Number,
             required: true,
             default: 0,
             max: 3
         },
         capacity: {
-            type: Number,           // 1, 2, 3
+            type: Number,
             required: true,
             min: 1,
             default: 1,
             max: 3,
         },
 
-        // Admin control
+
         is_active: {
             type: Boolean,
-            default: true           // false = maintenance / blocked
+            default: true
         },
-
 
         yearly_rent: {
             type: Number,
-            default: 85000,
+            default: 75500,
         }
     },
     { timestamps: true }
