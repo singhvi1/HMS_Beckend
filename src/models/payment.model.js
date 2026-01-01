@@ -4,6 +4,7 @@ const paymentSchema = new Schema({
   user_id: {
     type: Schema.Types.ObjectId,
     ref: "User",
+    index:true,
     required: true
   },
   amount: {

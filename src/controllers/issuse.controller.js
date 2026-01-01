@@ -2,12 +2,10 @@ import Issue from "../models/issue.model.js";
 import Student from "../models/student_profile.model.js";
 import logger from "../utils/logger.js";
 
-// Create issue
 const createIssue = async (req, res) => {
   try {
     const { title, description, category } = req.body;
 
-    // Validation
     if (!title || !description) {
       return res.status(400).json({
         success: false,
@@ -36,7 +34,6 @@ const createIssue = async (req, res) => {
       });
     }
 
-    // Validate category
     const validCategories = ["drinking-water", "plumbing", "furniture", "electricity", "other"];
 
     if (category && !validCategories.includes(category)) {
@@ -47,33 +44,59 @@ const createIssue = async (req, res) => {
     }
 
     // Check if student profile exists (optimized - single DB call)
-    const student = await Student.findOne({ user_id: req.user._id });
+    // const student = await Student.findOne({ user_id: req.user._id });
 
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found. Please create your profile first"
-      });
-    }
 
-    // Create issue
+    // if (!student) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "Student profile not found. Please create your profile first"
+    //   });
+    // }
+
+    // const issue = await Issue.create({
+    //   title: title.trim(),
+    //   description: description.trim(),
+    //   category: category || "other",
+    //   raised_by: student._id
+    // });
     const issue = await Issue.create({
       title: title.trim(),
       description: description.trim(),
       category: category || "other",
-      raised_by: student._id
-    });
+      raised_by: req.user._id
+    })
 
-    // Populate student details (optimized - single populate call)
-    await issue.populate({
-      path: "raised_by",
-      select: "sid branch room_number block",
-      populate: {
-        path: "user_id",
-        select: "full_name email phone"
-      }
-    });
 
+    // await issue.populate({
+    //   path: "raised_by",
+    //   select: "sid branch room_id user_id ",
+    //   populate: [
+    //     {
+    //       path: "user_id",
+    //       select: "full_name email phone role"
+    //     },
+    //     {
+    //       path: "room_id",
+    //       select: "room_number block"
+    //     }]
+
+    // });
+
+
+    await issue.populate(
+      {
+        path: "raised_by",
+        select: "full_name email role status",
+        populate: {
+          path: "student",
+          select: " sid branch room_id",
+          populate: {
+            path: "room_id",
+            select: "room_number block "
+          }
+        }
+      })
     return res.status(201).json({
       success: true,
       issue,
@@ -89,25 +112,25 @@ const createIssue = async (req, res) => {
   }
 };
 
-// Get all issues
 const getAllIssues = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, category, search } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+    const { status, category, search } = req.query;
 
-    // Build query
+    const skip = (page - 1) * limit;
     const query = {};
-    console.log(query)
 
-    // Students can only see their own issues
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
+      const student = await Student.findOne({ user_id: req.user._id }).select("_id");
+
       if (!student) {
         return res.status(404).json({
           success: false,
           message: "Student profile not found"
         });
       }
+
       query.raised_by = student._id;
     }
 
@@ -115,30 +138,35 @@ const getAllIssues = async (req, res) => {
       query.status = status;
     }
 
-    if (category && ["drinking-water", "plumbing", "furniture", "electricity", "other"].includes(category)) {
+    if (
+      category &&
+      ["drinking-water", "plumbing", "furniture", "electricity", "other"].includes(category)
+    ) {
       query.category = category;
     }
 
     if (search) {
-      query.$or = [
-        { title: new RegExp(search, "i") },
-        { description: new RegExp(search, "i") }
-      ];
+      const regex = new RegExp(search, "i");
+      query.$or = [{ title: regex }, { description: regex }];
     }
-    console.log("FINAL QUERY:", JSON.stringify(query, null, 2));
-    // Optimized: Get issues with populated student data in single query
+
     const issues = await Issue.find(query)
       .populate({
         path: "raised_by",
-        select: "sid branch room_number block",
-        populate: {
-          path: "user_id",
-          select: "full_name email phone"
-        }
+        select: "sid branch guardian_contact guardian_name permanent_address",
+        populate: [
+          {
+            path: "user_id",
+            select: "full_name email phone role status"
+          }, {
+            path: "room_id",
+            select: "room_number block"
+          }]
       })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit)
+      .lean();
 
     const total = await Issue.countDocuments(query);
 
@@ -146,10 +174,10 @@ const getAllIssues = async (req, res) => {
       success: true,
       issues,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / limit)
       },
       message: "Issues fetched successfully"
     });
@@ -163,7 +191,7 @@ const getAllIssues = async (req, res) => {
   }
 };
 
-// Get single issue
+
 const getIssue = async (req, res) => {
   try {
     const { id } = req.params;
@@ -171,11 +199,15 @@ const getIssue = async (req, res) => {
     const issue = await Issue.findById(id)
       .populate({
         path: "raised_by",
-        select: "sid branch room_number block",
-        populate: {
-          path: "user_id",
-          select: "full_name email phone"
-        }
+        select: "sid branch guardian_contact guardian_name permanent_address",
+        populate: [
+          {
+            path: "user_id",
+            select: "full_name email phone role status"
+          }, {
+            path: "room_id",
+            select: "room_number block"
+          }]
       });
 
     if (!issue) {
@@ -185,7 +217,6 @@ const getIssue = async (req, res) => {
       });
     }
 
-    // Check access: students can only see their own issues
     if (req.user.role === "student") {
       const student = await Student.findOne({ user_id: req.user._id });
       if (!student || issue.raised_by._id.toString() !== student._id.toString()) {
@@ -219,13 +250,11 @@ const getIssue = async (req, res) => {
   }
 };
 
-// Update issue status (admin/staff only)
 const updateIssueStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // Validation
     if (!status || !["pending", "resolved"].includes(status)) {
       return res.status(400).json({
         success: false,
@@ -242,18 +271,20 @@ const updateIssueStatus = async (req, res) => {
       });
     }
 
-    // Update status
     issue.status = status;
     await issue.save();
 
-    // Populate data for response
     await issue.populate({
       path: "raised_by",
-      select: "sid branch room_number block",
-      populate: {
-        path: "user_id",
-        select: "full_name email phone"
-      }
+      select: "sid branch guardian_contact guardian_name permanent_address",
+      populate: [
+        {
+          path: "user_id",
+          select: "full_name email phone role status"
+        }, {
+          path: "room_id",
+          select: "room_number block"
+        }]
     });
 
     return res.status(200).json({

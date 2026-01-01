@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 const studentHistorySchema = new mongoose.Schema({
   student_id: {
     type: mongoose.Schema.Types.ObjectId,
+    index:true,
     ref: "Student",
     required: true
   },

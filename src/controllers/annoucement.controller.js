@@ -60,13 +60,11 @@ const createAnnouncement = async (req, res) => {
   }
 };
 
-// Get all announcements
 const getAllAnnouncements = async (req, res) => {
   try {
     const { page = 1, limit = 10, search } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build query
     const query = {};
     if (search) {
       query.$or = [
@@ -75,7 +73,6 @@ const getAllAnnouncements = async (req, res) => {
       ];
     }
 
-    // Optimized: Get announcements with populated creator in single query
     const announcements = await Announcement.find(query)
       .populate("created_by", "full_name email role")
       .sort({ createdAt: -1 })

@@ -6,6 +6,7 @@ const studentSchema = new Schema(
     user_id: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      index: true,
       required: true,
       index: true
     },
@@ -45,15 +46,6 @@ const studentSchema = new Schema(
       required: true,
       trim: true,
     },
-    room_number: {
-      type: Number,
-      required: true,
-    },
-    block: {
-      type: String,
-      required: true,
-      lowercase: true,
-    },
     room_out: {
       type: Date,
     }
@@ -62,6 +54,10 @@ const studentSchema = new Schema(
     timestamps: true
   }
 );
+
+studentSchema.index({
+  branch: 1, status: 1, createdAt: -1
+});
 
 const Student = model("Student", studentSchema);
 export default Student;

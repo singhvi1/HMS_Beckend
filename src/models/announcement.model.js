@@ -30,7 +30,7 @@ const announcementSchema = new Schema({
     required: true
   },
 }, { timestamps: true });
-
+announcementSchema.index({ created_by: 1, createdAt: -1 });
 const Announcement = mongoose.model("Announcement", announcementSchema);
 
 export default Announcement;

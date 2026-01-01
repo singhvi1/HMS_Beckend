@@ -66,7 +66,25 @@ export const getAllRooms = async (req, res) => {
     if (floor !== undefined) filter.floor = Number(floor);
     if (is_active !== undefined) filter.is_active = is_active === "true";
 
-    const rooms = await Room.find(filter).sort({ block: 1, room_number: 1 });
+    const rooms = await Room.find(filter)
+      .populate({
+        path: "occupants",
+        select: "sid permanent_address guardian_name guardian_contact leaving_date branch",
+        populate: ({
+          path: "raised_by",
+          select: "sid branch guardian_contact guardian_name permanent_address",
+          populate: [
+            {
+              path: "user_id",
+              select: "full_name email phone role status"
+            }, {
+              path: "room_id",
+              select: "room_number block"
+            }]
+        })
+      })
+      .sort({ block: 1, room_number: 1 })
+
 
     logger.info("GET_ALL_ROOMS: Rooms fetched", {
       count: rooms.length,
@@ -93,7 +111,16 @@ export const getRoomById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const room = await Room.findById(id);
+    const room = await Room.findById(id)
+      .populate({
+        path: "occupants",
+        select: "sid permanent_address guardian_name guardian_contact leaving_date branch",
+        populate: {
+          path: "user_id",
+          select: "full_name email phone role status"
+        }
+
+      });
 
     if (!room) {
       logger.warn("GET_ROOM_BY_ID: Room not found", { room_id: id });

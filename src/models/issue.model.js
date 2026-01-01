@@ -1,35 +1,36 @@
-import mongoose, {Schema} from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const issueSchema = new Schema({
-    title:{
+    title: {
         required: true,
         type: String,
         trim: true,
     },
-    description:{
+    description: {
         required: true,
         type: String,
         trim: true,
         minLength: [10, "Minimum 10 characters are required"],
         maxLength: [500, "Maximum 500 characters allowed"]
     },
-    category:{
+    category: {
         type: String,
         default: "other",
         enum: ["drinking-water", "plumbing", "furniture", "electricity", "other"]
     },
-    status:{
+    status: {
         type: String,
         default: "pending",
         enum: ["pending", "resolved"],
     },
-    raised_by:{
+    raised_by: {
         type: Schema.Types.ObjectId,
         required: true,
         ref: "Student",
     }
-},{timestamps: true})
+}, { timestamps: true })
 
+issueSchema.index({ raised_by: 1, createdAt: -1 });
 const Issue = mongoose.model("Issue", issueSchema);
 
 export default Issue;

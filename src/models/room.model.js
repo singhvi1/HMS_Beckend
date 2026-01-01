@@ -49,7 +49,6 @@ const roomSchema = new Schema(
     { timestamps: true }
 );
 
-// Enforce uniqueness per block
 roomSchema.index({ block: 1, room_number: 1 }, { unique: true });
 
 roomSchema.virtual("occupants", {

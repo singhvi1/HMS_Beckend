@@ -296,33 +296,15 @@ const createStudentProfile = async (req, res) => {
 // Get student profile by user ID
 const getStudentProfile = async (req, res) => {
   try {
-    // const user_id = req.user._id
-    console.log("DEBUG req.user:", req.user);
-    //if req.user.role-> student -> /:id -> req.user._id
-    //if req.user.role-> admin/staff -> /:id -> req.params
-    let targetUserId = req.params.user_id || req.user._id;
-
-    /*if (req.user.role === "student") {
-      targetUserId = req.user._id;
-
-    } else if (req.user.role === "admin" || req.user.role === "staff") {
-      targetUserId = req.params.user_id || req.user._id;  //?if we want to show staff profile too
-    } else {
-
-      return res.status(403).json({
-        success: false,
-        message: "Access denied"
-      });
-    }*/
-
-
+    let targetUserId = req.params.id || req.user._id;
+    console.log(targetUserId)
     const student = await Student.findOne({ user_id: targetUserId })
       .populate([
-        { path: "user_id", select: "full_name email phone role" },
+        { path: "user_id", select: "full_name email phone role status" },
         { path: "room_id", select: "block room_number capacity  occupancy" }
       ])
 
-    //? we need to add staff too if we need 
+
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -356,9 +338,7 @@ const getAllStudents = async (req, res) => {
     if (branch) query.branch = new RegExp(branch, "i");
     if (status) query.status = new RegExp(status, "i");
 
-    // Search by name, email, or SID (optimized - single aggregation query)
     if (search) {
-      // First, get matching students by SID
       const sidMatches = await Student.find({ sid: new RegExp(search, "i") })
         .populate("")
         .select("user_id");
