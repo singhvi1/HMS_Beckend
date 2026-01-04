@@ -20,13 +20,6 @@ const roomSchema = new Schema(
             type: Number,
             min: 0,
         },
-
-        occupancy: {
-            type: Number,
-            required: true,
-            default: 0,
-            max: 3
-        },
         capacity: {
             type: Number,
             required: true,

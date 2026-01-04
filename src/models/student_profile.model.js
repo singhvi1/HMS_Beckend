@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import { Schema, model } from "mongoose";
 import Room from "./room.model.js";
+import Issue from "./issue.model.js";
+import Leave from "./leave_request.model.js";
+
 
 const studentSchema = new Schema(
   {
@@ -68,13 +71,61 @@ const studentSchema = new Schema(
 studentSchema.index({ branch: 1, createdAt: -1 });
 
 studentSchema.pre("save", async function () {
-  const roomDetail = this
-  if (roomDetail.isModified("room_id")) {
-    const room = await Room.findById(this?.room_id);
-    this.block = room.block;
-    this.room_number = room.room_number;
+  try {
+    if (!this.isNew && !this.isModified("room_id")) return;
+
+    if (!this.room_id) {
+      throw new Error("room_id is required");
+    }
+    const session = this.$session();
+    const room = await Room
+      .findById(this.room_id)
+      .select("block room_number")
+      .session(session);
+
+    if (!room) {
+      throw new Error("Invalid room_id in preHook");
+    }
+    this.block = room?.block;
+    this.room_number = room?.room_number;
+  } catch (err) {
+    throw err;
   }
 });
+studentSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate();
+  if (!update?.room_id) return next();
+
+  const session = this.getOptions().session;
+
+  const room = await Room
+    .findById(update.room_id)
+    .select("block room_number")
+    .session(session);
+
+  if (!room) {
+    return next(new Error("Invalid room_id"));
+  }
+
+  update.block = room.block;
+  update.room_number = room.room_number;
+  next();
+});
+
+
+
+
+
+studentSchema.post("findOneAndDelete", async function (doc) {
+  if (!doc) return;
+
+  await Promise.all([
+    Issue.deleteMany({ raised_by: doc._id }),
+    Leave.deleteMany({ student_id: doc._id }),
+  ]);
+});
+
+
 
 
 const Student = model("Student", studentSchema);

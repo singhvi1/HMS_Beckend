@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
 
-const createUserStudent = async (req, res) => {
+export const createUserStudent = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -23,18 +23,17 @@ const createUserStudent = async (req, res) => {
       branch,
       room_number,
       block,
+      roomId = null,
     } = req.body;
-    //TODO : romove room_number and block 
+    //TODO : romove room_number and block after aggregation pipeline
     if (req.user.role !== "admin") {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(403).json({
         success: false,
         message: "User must have admin role : forbidden "
       });
     }
 
-    if (!full_name || !email || !phone || !password || !sid || !permanent_address || !guardian_name || !guardian_contact || !branch || !room_number || !block) {
+    if (!full_name || !email || !phone || !password || !sid || !permanent_address || !guardian_name || !guardian_contact || !branch || (!roomId && (!room_number || !block))) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided"
@@ -80,6 +79,8 @@ const createUserStudent = async (req, res) => {
     const existingUser = await User.findOne(
       { $or: [{ email }, { phone }] }, null, { session });
 
+    //? why did we use NUll :-> findOne(( filter, projection, options ))
+
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -88,6 +89,7 @@ const createUserStudent = async (req, res) => {
           : "User with this phone number already exists"
       });
     }
+
     //NOTE : User.create([{ ... }], { session }) rule:
     //[user] : mean take the first arr[0] => user =arr[0];
 
@@ -100,71 +102,49 @@ const createUserStudent = async (req, res) => {
       role: role,
     }], { session });
 
-    //checking room : 
-    let roomId = null;
-    const room = await Room.findOneAndUpdate(
-      {
-        block: block.toLowerCase(),
-        room_number,
-        $expr: { $lt: ["$occupancy", "$capacity"] }
-      },
-      {
-        $inc: { occupancy: 1 }
-      },
-      {
-        new: true,
-        session
+
+    let room;
+    if (roomId) {
+      room = await Room.findById(roomId).session(session);
+      if (!room) {
+        throw new Error("Room not found");
       }
-    );
-    if (!room) {
-      // Check if room exists but is full
-      const existingRoom = await Room.findOne(
-        { block: block.toLowerCase(), room_number },
-        null,
-        { session }
-      );
+      const studentCount = await Student.countDocuments({
+        room_id: room._id
+      }).session(session);
 
-      if (existingRoom) {
-        throw new Error("Room is full");
+      if (studentCount >= room.capacity) {
+        throw new Error("Room is already full");
       }
-
-      // Room does NOT exist → create it
-      const [newRoom] = await Room.create(
-        [
-          {
-            block: block.toLowerCase(),
-            room_number,
-            capacity: 2,
-            occupancy: 1
-          }
-        ],
-        { session }
-      );
-
-      roomId = newRoom._id;
     } else {
-      roomId = room._id;
+      room = await Room.findOne({ block, room_number }).session(session);
+      if (room) throw new Error("Duplicate Room exist ");
+
+      const [newRoom] = await Room.create(
+        [{
+          block: block.toLowerCase(),
+          room_number,
+          capacity: req.body.capacity ?? 1
+        }],
+        { session }
+      );
+      room = newRoom;
     }
 
-    // Create student profile
     const [student] = await Student.create([{
       user_id: user._id,
-      room_id: roomId,
+      room_id: room._id,
       sid,
       permanent_address: permanent_address.trim(),
       guardian_name: guardian_name?.trim(),
       guardian_contact,
       branch: branch.trim(),
-      room_number,
-      block: block.toLowerCase().trim()
     }], { session });
 
     await session.commitTransaction();
-    session.endSession();
-
     await student.populate([
       { path: "user_id", select: "full_name email phone role status" },
-      { path: "room_id", select: "block room_number capacity  occupancy" }
+      { path: "room_id", select: "block room_number capacity " }
     ]);
 
     return res.status(201).json({
@@ -174,7 +154,7 @@ const createUserStudent = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
+
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(409).json({
@@ -186,13 +166,14 @@ const createUserStudent = async (req, res) => {
     logger.error("Failed to add user", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to add user"
+      message: error.message || "Failed to add user"
     });
+  } finally {
+    session.endSession();
   }
 
 }
-
-const createStudentProfile = async (req, res) => {
+export const createStudentProfile = async (req, res) => {
   try {
     const {
       studentUser_id,
@@ -202,19 +183,18 @@ const createStudentProfile = async (req, res) => {
       guardian_contact,
       branch,
       room_number,
-      block
+      block,
+      room_id,
     } = req.body;
 
 
-    // Validation
-    if (!sid || !permanent_address || !guardian_contact || !branch || !room_number || !block) {
+    if (!sid || !permanent_address || !guardian_contact || !branch || !room_number || !block || !room_id) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided"
       });
     }
 
-    // Validate SID format
     if (sid.length !== 8 || !/^\d+$/.test(sid)) {
       return res.status(400).json({
         success: false,
@@ -222,7 +202,6 @@ const createStudentProfile = async (req, res) => {
       });
     }
 
-    // Validate guardian contact
     if (guardian_contact.toString().length !== 10 || !/^\d+$/.test(guardian_contact.toString())) {
       return res.status(400).json({
         success: false,
@@ -239,7 +218,6 @@ const createStudentProfile = async (req, res) => {
       });
     }
 
-    // Check if student profile already exists
     const existingProfile = await Student.findOne({
       $or: [{ user_id: studentUser_id }, { sid }]
     });
@@ -254,7 +232,6 @@ const createStudentProfile = async (req, res) => {
       });
     }
 
-    // Create student profile
     const student = await Student.create({
       user_id: studentUser_id,
       sid,
@@ -263,10 +240,10 @@ const createStudentProfile = async (req, res) => {
       guardian_contact,
       branch: branch.trim(),
       room_number,
+      room_id,
       block: block.toLowerCase().trim()
     });
 
-    // Populate user details in response (optimized - single populate call)
     await student.populate("user_id", "full_name email phone role");
 
     return res.status(201).json({
@@ -293,15 +270,14 @@ const createStudentProfile = async (req, res) => {
   }
 };
 
-// Get student profile by user ID
-const getStudentProfile = async (req, res) => {
+export const getStudentProfile = async (req, res) => {
   try {
     let targetUserId = req.params.id || req.user._id;
     console.log(targetUserId)
     const student = await Student.findOne({ user_id: targetUserId })
       .populate([
         { path: "user_id", select: "full_name email phone role status" },
-        { path: "room_id", select: "block room_number capacity  occupancy" }
+        { path: "room_id", select: "block room_number capacity  " }
       ])
 
 
@@ -327,7 +303,7 @@ const getStudentProfile = async (req, res) => {
   }
 };
 //NOTE this is not optimised i need to learn aggregate Pipeline;
-const getAllStudents = async (req, res) => {
+export const getAllStudents = async (req, res) => {
   try {
     const { page = 1, limit = 10, block, branch, search, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -375,7 +351,7 @@ const getAllStudents = async (req, res) => {
     const students = await Student.find(query)
       .populate([
         { path: "user_id", select: "full_name email phone role status" },
-        { path: "room_id", select: "block room_number capacity  occupancy" }
+        { path: "room_id", select: "block room_number capacity  " }
       ])
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -405,18 +381,10 @@ const getAllStudents = async (req, res) => {
 };
 
 // Update student profile by student(some) and admin(all);
-const updateStudentProfile = async (req, res) => {
+export const updateStudentProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
-
-    const {
-      permanent_address,
-      guardian_name,
-      guardian_contact,
-      branch,
-      room_number,
-      block
-    } = req.body;
+    const { guardian_contact, } = req.body;
 
 
     const student = await Student.findOne({ user_id });
@@ -447,6 +415,32 @@ const updateStudentProfile = async (req, res) => {
     }
 
 
+    let newRoomId = null;
+    if (isAdminRoute && req.body?.block && req.body?.room_number) {
+      const room = await Room.findOne({
+        block: req.body.block.toLowerCase(),
+        room_number: req.body.room_number
+      });
+      if (!room) {
+        return res.status(404).json({
+          success: false,
+          message: "Room Not Avialable"
+        })
+      }
+
+      const occupantsCount = await Student.countDocuments({
+        room_id: room._id,
+        _id: { $ne: student._id }
+      });
+      if (occupantsCount >= room.capacity) {
+        return res.status(400).json({
+          success: false,
+          message: "Room Fulled or not aviable"
+        })
+      }
+      newRoomId = room._id;
+    }
+
 
     const allowedFields = isAdminRoute
       ? [
@@ -454,8 +448,6 @@ const updateStudentProfile = async (req, res) => {
         "guardian_name",
         "guardian_contact",
         "branch",
-        "room_number",
-        "block"
       ]
       : [
         "permanent_address",
@@ -470,8 +462,9 @@ const updateStudentProfile = async (req, res) => {
           : req.body[field];
       return newValue != student[field];
     });
+    const hasRoomChange = newRoomId && newRoomId.toString() !== student.room_id?.toString();
 
-    if (!hasRealChange) {
+    if (!hasRealChange && !hasRoomChange) {
       return res.status(400).json({
         success: false,
         message: "No changes detected"
@@ -497,11 +490,14 @@ const updateStudentProfile = async (req, res) => {
             : req.body[field];
       }
     }
+    if (newRoomId) {
+      student.room_id = newRoomId;
+    }
 
     await student.save();
     await student.populate([
-      { path: "user_id", select: "full_name email phone role" },
-      { path: "room_id", select: "block room_number capacity  occupancy" }
+      { path: "user_id", select: "full_name email phone role status" },
+      { path: "room_id", select: "block room_number capacity" }
     ]);
 
     return res.status(200).json({
@@ -519,11 +515,58 @@ const updateStudentProfile = async (req, res) => {
   }
 };
 
-// Delete student profile (admin only)
-const deleteStudentProfile = async (req, res) => {
+export const toggleStudentStatus = async (req, res) => {
   try {
-    const { user_id } = req.paramas;
+    const { user_id } = req.params;
 
+    const user = await User.findById(user_id);
+
+    if (!user) {
+      logger.warn("TOGGLE_STUDENT_STATUS: User not found", { user_id });
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    if (user.role !== "student") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not a student"
+      });
+    }
+
+    user.status = user.status === "active" ? "inactive" : "active";
+    await user.save();
+
+    logger.info("TOGGLE_STUDENT_STATUS: Status updated", {
+      user_id,
+      status: user.status
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Student is now ${user.status}`,
+      data: {
+        user_id: user._id,
+        status: user.status
+      }
+    });
+
+  } catch (error) {
+    logger.error("TOGGLE_STUDENT_STATUS: Error", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to toggle student status"
+    });
+  }
+};
+
+
+export const deleteStudentProfile = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    console.log(req.params, "this is req.paramas")
     const student = await Student.findOneAndDelete({ user_id });
 
     if (!student) {
@@ -545,14 +588,5 @@ const deleteStudentProfile = async (req, res) => {
       message: "Failed to delete student profile"
     });
   }
-};
-
-export {
-  createStudentProfile,
-  getStudentProfile,
-  getAllStudents,
-  updateStudentProfile,
-  deleteStudentProfile,
-  createUserStudent,
 };
 

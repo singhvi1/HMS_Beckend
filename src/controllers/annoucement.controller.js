@@ -1,12 +1,10 @@
 import Announcement from "../models/announcement.model.js";
 import logger from "../utils/logger.js";
 
-// Create announcement (admin/staff only)
-const createAnnouncement = async (req, res) => {
+export const createAnnouncement = async (req, res) => {
   try {
     const { title, message, notice_url, category } = req.body;
 
-    // Validation
     if (!title || !message || !category) {
       return res.status(400).json({
         success: false,
@@ -27,10 +25,10 @@ const createAnnouncement = async (req, res) => {
         message: "Message must be at least 10 characters long"
       });
     }
-    if (category.trim().length > 10) {
+    if (category.trim().length > 20) {
       return res.status(400).json({
         success: false,
-        message: "category must be atmmost 10 characters long"
+        message: "category must be atmmost 20 characters long"
       });
     }
 
@@ -42,7 +40,6 @@ const createAnnouncement = async (req, res) => {
       created_by: req.user._id
     });
 
-    // Populate creator details (optimized - single populate call)
     await announcement.populate("created_by", "full_name email role");
 
     return res.status(201).json({
@@ -60,7 +57,7 @@ const createAnnouncement = async (req, res) => {
   }
 };
 
-const getAllAnnouncements = async (req, res) => {
+export const getAllAnnouncements = async (req, res) => {
   try {
     const { page = 1, limit = 10, search } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -102,8 +99,7 @@ const getAllAnnouncements = async (req, res) => {
   }
 };
 
-// Get single announcement
-const getAnnouncement = async (req, res) => {
+export const getAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -140,8 +136,7 @@ const getAnnouncement = async (req, res) => {
   }
 };
 
-// Update/create announcement (admin/staff only, or creator)
-const updateAnnouncement = async (req, res) => {
+export const updateAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, message, notice_url, category } = req.body;
@@ -164,8 +159,8 @@ const updateAnnouncement = async (req, res) => {
       }
       announcement.title = title.trim();
     }
-    if(category){
-      announcement.category=category;
+    if (category) {
+      announcement.category = category;
     }
     if (message) {
       if (message.trim().length < 10) {
@@ -207,8 +202,7 @@ const updateAnnouncement = async (req, res) => {
   }
 };
 
-// Delete announcement (admin/staff only, or creator)
-const deleteAnnouncement = async (req, res) => {
+export const deleteAnnouncement = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -242,13 +236,5 @@ const deleteAnnouncement = async (req, res) => {
       message: "Failed to delete announcement"
     });
   }
-};
-
-export {
-  createAnnouncement,
-  getAllAnnouncements,
-  getAnnouncement,
-  updateAnnouncement,
-  deleteAnnouncement
 };
 

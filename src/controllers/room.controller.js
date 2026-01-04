@@ -32,7 +32,6 @@ export const createRoom = async (req, res) => {
       floor,
       capacity,
       yearly_rent,
-      occupancy: 0,
     });
 
     logger.info("CREATE_ROOM: Room created", {
