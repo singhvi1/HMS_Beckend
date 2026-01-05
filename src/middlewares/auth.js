@@ -34,14 +34,17 @@ export const auth = async (req, res, next) => {
     }
 
     if (user.role == "student") {
-      await user?.populate("student", "_id sid branch room_number block")
+      await user.populate("student", "_id")
+
+      if (!user.student) {
+        return res.status(403).json({
+          success: false,
+          message: "Student profile not created yet. Contact admin."
+        });
+      }
+      req.studentId = user.student._id;
     }
-    if (user.role == "student" && !user.student) {
-      return res.status(403).json({
-        success: false,
-        message: "Student profile not created yet. Contact admin."
-      });
-    }
+
 
     req.user = user;
     next();

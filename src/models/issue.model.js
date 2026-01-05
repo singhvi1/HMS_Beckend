@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import IssueComment from "./issue_comment.model.js";
 
 const issueSchema = new Schema({
     title: {
@@ -16,12 +17,12 @@ const issueSchema = new Schema({
     category: {
         type: String,
         default: "other",
-        enum: ["drinking-water", "plumbing", "furniture", "electricity", "other"]
+        enum: ["drinking-water", "plumbing", "furniture", "electricity", "internet", "civil", "other"]
     },
     status: {
         type: String,
         default: "pending",
-        enum: ["pending", "resolved"],
+        enum: ["pending", "resolved", "in_progress"],
     },
     raised_by: {
         type: Schema.Types.ObjectId,
@@ -30,6 +31,13 @@ const issueSchema = new Schema({
     }
 }, { timestamps: true })
 
+issueSchema.post("findOneAndDelete", async function (doc) {
+    if (!doc) return;
+
+    await IssueComment.deleteMany({
+        issue_id: doc._id,
+    });
+});
 issueSchema.index({ raised_by: 1, createdAt: -1 });
 const Issue = mongoose.model("Issue", issueSchema);
 

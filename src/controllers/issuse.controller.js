@@ -3,7 +3,7 @@ import Student from "../models/student_profile.model.js";
 import User from "../models/user.model.js";
 import logger from "../utils/logger.js";
 
-const createIssue = async (req, res) => {
+export const createIssue = async (req, res) => {
   try {
     const { title, description, category } = req.body;
 
@@ -65,7 +65,7 @@ const createIssue = async (req, res) => {
       title: title.trim(),
       description: description.trim(),
       category: category || "other",
-      raised_by: req.user._id
+      raised_by: req.studentId
     })
 
 
@@ -113,12 +113,12 @@ const createIssue = async (req, res) => {
   }
 };
 
-const getAllIssues = async (req, res) => {
+export const getAllIssues = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
 
-    const { status, category, search, student_search, sid, block, room_number } = req.query;
+    const { status, category, search, student_search, sid, block, room_number, studentId } = req.query;
     const skip = (page - 1) * limit;
     const query = {};
 
@@ -131,13 +131,13 @@ const getAllIssues = async (req, res) => {
           message: "Student profile not found"
         });
       }
-
       query.raised_by = student._id;
-
     }
     else if (req.user.role === "admin" || req.user.role === "staff") {
-
-      if (sid || block || room_number || student_search) {
+      if (studentId) {
+        query.raised_by = studentId;
+      }
+      else if (sid || block || room_number || student_search) {
 
         const studentQuery = {};
 
@@ -169,6 +169,7 @@ const getAllIssues = async (req, res) => {
         console.log(students)
         query.raised_by = { $in: students.map(s => s._id) };
       }
+
     } else {
       return res.status(403).json({
         success: false,
@@ -240,7 +241,7 @@ const getAllIssues = async (req, res) => {
 };
 
 
-const getIssue = async (req, res) => {
+export const getIssue = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -266,8 +267,7 @@ const getIssue = async (req, res) => {
     }
 
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student || issue.raised_by._id.toString() !== student._id.toString()) {
+      if (issue.raised_by._id.toString() !== req.studentId.toString()) {
         return res.status(403).json({
           success: false,
           message: "Access denied"
@@ -298,12 +298,12 @@ const getIssue = async (req, res) => {
   }
 };
 
-const updateIssueStatus = async (req, res) => {
+export const updateIssueStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!status || !["pending", "resolved"].includes(status)) {
+    if (!status || !["pending", "resolved", "in_progress"].includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Status must be either 'pending' or 'resolved'"
@@ -359,7 +359,7 @@ const updateIssueStatus = async (req, res) => {
 };
 
 // Update issue (student can update own pending issues)
-const updateIssue = async (req, res) => {
+export const updateIssue = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, category } = req.body;
@@ -375,8 +375,7 @@ const updateIssue = async (req, res) => {
 
     // Check access
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student || issue.raised_by.toString() !== student._id.toString()) {
+      if (issue.raised_by.toString() !== req.studentId.toString()) {
         return res.status(403).json({
           success: false,
           message: "Access denied. You can only update your own issues"
@@ -464,7 +463,7 @@ const updateIssue = async (req, res) => {
 };
 
 // Delete issue (student can delete own pending issues, admin/staff can delete any)
-const deleteIssue = async (req, res) => {
+export const deleteIssue = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -477,17 +476,16 @@ const deleteIssue = async (req, res) => {
       });
     }
 
-    // Check access
+
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student || issue.raised_by.toString() !== student._id.toString()) {
+      if (issue.raised_by.toString()
+        !== req.studentId.toString()) {
         return res.status(403).json({
           success: false,
           message: "Access denied"
         });
       }
 
-      // Students can only delete pending issues
       if (issue.status !== "pending") {
         return res.status(400).json({
           success: false,
@@ -520,12 +518,4 @@ const deleteIssue = async (req, res) => {
   }
 };
 
-export {
-  createIssue,
-  getAllIssues,
-  getIssue,
-  updateIssueStatus,
-  updateIssue,
-  deleteIssue
-};
 

@@ -14,7 +14,7 @@ const router = Router();
 router.post("/", auth, createComment);
 
 // Get all comments for an issue
-router.get("/issue/:issue_id", auth, getIssueComments);
+router.get("/all/:issue_id", auth, getIssueComments);
 
 // Get single issues  comment
 router.get("/:id", auth, getComment);

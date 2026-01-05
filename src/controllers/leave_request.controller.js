@@ -2,12 +2,10 @@ import LeaveRequest from "../models/leave_request.model.js";
 import Student from "../models/student_profile.model.js";
 import logger from "../utils/logger.js";
 
-// Create leave request
-const createLeaveRequest = async (req, res) => {
+export const createLeaveRequest = async (req, res) => {
   try {
     const { from_date, to_date, destination, reason } = req.body;
 
-    // Validation
     if (!from_date || !to_date) {
       return res.status(400).json({
         success: false,
@@ -20,7 +18,6 @@ const createLeaveRequest = async (req, res) => {
         message: "Destination and reason are required"
       });
     }
-    //data normalization to DD-MM-YYYY
     const normalizeDate = (dateStr) => {
       const [y, m, d] = dateStr.split("-").map(Number);
       return new Date(y, m - 1, d);
@@ -28,10 +25,6 @@ const createLeaveRequest = async (req, res) => {
     const fromDate = normalizeDate(from_date)
     const toDate = normalizeDate(to_date)
 
-    // const fromDate = new Date(from_date); //bcz these wil create utc error got manual handles
-    // const toDate = new Date(to_date);
-
-    // Validate dates
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return res.status(400).json({
         success: false,
@@ -56,10 +49,8 @@ const createLeaveRequest = async (req, res) => {
 
       });
     }
-    // console.log("stuent_id", req.user.student)
-    // Check for overlapping leave requests
     const overlappingLeave = await LeaveRequest.findOne({
-      student_id: req.user.student._id,
+      student_id: req.studentId,
       status: { $in: ["pending", "approved"] },
       from_date: { $lte: toDate },
       to_date: { $gte: fromDate }
@@ -72,7 +63,6 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
-    // Create leave request
     const leaveRequest = await LeaveRequest.create({
       student_id: req.user.student._id,
       from_date: fromDate,
@@ -81,7 +71,6 @@ const createLeaveRequest = async (req, res) => {
       reason: reason?.trim()
     });
 
-    // Populate student and user details (optimized - nested populate)
     await leaveRequest.populate({
       path: "student_id",
       select: "sid branch room_number block",
@@ -106,39 +95,70 @@ const createLeaveRequest = async (req, res) => {
   }
 };
 
-// Get all leave requests (with filters)
-const getAllLeaveRequests = async (req, res) => {
+export const getAllLeaveRequests = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, student_user_id } = req.query;
+    const { page = 1, limit = 10, status, studentId, sid, block, from_date, to_date, room_number } = req.query;
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build query
     const query = {};
 
-    // Students can only see their own requests
     if (req.user.role === "student") {
-      query.student_id = req.user.student._id;
+      query.student_id = req.studentId;
     }
-    if (
-      (req.user.role === "admin" || req.user.role === "staff") &&
-      student_user_id
+    if ((req.user.role === "admin" || req.user.role === "staff") &&
+      studentId
     ) {
-      const student = await Student.findOne(
-        { user_id: student_user_id },
-        "_id"
-      );
+      query.student_id = studentId;
+    }
+    let studentSearchId = []
+    if ((sid || block || room_number) && req.user.role == "admin") {
+      const studentQuery = {};
 
-      if (student) {
-        query.student_id = student._id;
+      if (sid?.trim()) {
+        studentQuery.sid = new RegExp(sid, "i")
+      }
+
+      if (block) {
+        studentQuery.block = block.trim().toLowerCase();
+      }
+      if (room_number?.trim()) {
+        studentQuery.room_number = new RegExp(room_number, "i")
+      }
+
+      console.log("STUDENT QUERY →", studentQuery);
+
+      const students = await Student.find(studentQuery).select("_id");
+      console.log(studentQuery)
+      console.log(students)
+      if (students.length > 0) {
+        studentSearchId = students.map(s => s._id)
+      }
+    }
+
+    if (studentSearchId.length > 0) {
+      if (query.student_id) {
+        // merge with existing condition
+        query.student_id = {
+          $in: studentSearchId.filter(id =>
+            id.toString() === query.student_id.toString()
+          )
+        };
+      } else {
+        query.student_id = { $in: studentSearchId };
       }
     }
 
 
+    if (from_date || to_date) {
+      query.from_date = {};
+      if (from_date) query.from_date.$gte = new Date(from_date);
+      if (to_date) query.from_date.$lte = new Date(to_date);
+    }
     if (status && ["pending", "approved", "rejected"].includes(status)) {
       query.status = status;
     }
 
-    // Optimized: Get leave requests with populated data in single query
     const leaveRequests = await LeaveRequest.find(query)
       .populate({
         path: "student_id",
@@ -176,8 +196,7 @@ const getAllLeaveRequests = async (req, res) => {
   }
 };
 
-// Get single leave request
-const getLeaveRequest = async (req, res) => {
+export const getLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -233,12 +252,11 @@ const getLeaveRequest = async (req, res) => {
   }
 };
 
-// Update leave request status (admin/staff only)
-const updateLeaveRequestStatus = async (req, res) => {
+export const updateLeaveRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-console.log("update status called")
+    console.log("update status called")
     // Validation
     if (!status || !["approved", "rejected"].includes(status)) {
       return res.status(400).json({
@@ -291,8 +309,7 @@ console.log("update status called")
   }
 };
 
-// Delete leave request (student can delete pending, admin/staff can delete any)
-const deleteLeaveRequest = async (req, res) => {
+export const deleteLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -373,13 +390,5 @@ const deleteLeaveRequest = async (req, res) => {
       message: "Failed to delete leave request"
     });
   }
-};
-
-export {
-  createLeaveRequest,
-  getAllLeaveRequests,
-  getLeaveRequest,
-  updateLeaveRequestStatus,
-  deleteLeaveRequest
 };
 

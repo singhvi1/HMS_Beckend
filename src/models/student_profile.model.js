@@ -113,20 +113,17 @@ studentSchema.pre("findOneAndUpdate", async function (next) {
 });
 
 
-
-
-
 studentSchema.post("findOneAndDelete", async function (doc) {
   if (!doc) return;
+  const issues = await Issue.find({ raised_by: doc._id }).select("_id");
+  const issueIds = issues.map(i => i._id);
 
   await Promise.all([
+    IssueComment.deleteMany({ issue_id: { $in: issueIds } }),
     Issue.deleteMany({ raised_by: doc._id }),
     Leave.deleteMany({ student_id: doc._id }),
   ]);
 });
-
-
-
 
 const Student = model("Student", studentSchema);
 export default Student;

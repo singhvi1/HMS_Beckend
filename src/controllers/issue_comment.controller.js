@@ -1,14 +1,11 @@
 import IssueComment from "../models/issue_comment.model.js";
 import Issue from "../models/issue.model.js";
-import Student from "../models/student_profile.model.js";
 import logger from "../utils/logger.js";
 
-// Create comment on issue
 const createComment = async (req, res) => {
   try {
     const { issue_id, comment_text } = req.body;
-
-    // Validation
+    console.log(req.body,"this is req.nody")
     if (!issue_id || !comment_text) {
       return res.status(400).json({
         success: false,
@@ -30,7 +27,6 @@ const createComment = async (req, res) => {
       });
     }
 
-    // Check if issue exists (optimized - single DB call)
     const issue = await Issue.findById(issue_id);
     if (!issue) {
       return res.status(404).json({
@@ -39,7 +35,6 @@ const createComment = async (req, res) => {
       });
     }
 
-    // Create comment
     const comment = await IssueComment.create({
       issue_id,
       comment_text: comment_text.trim(),
@@ -72,14 +67,12 @@ const createComment = async (req, res) => {
   }
 };
 
-// Get all comments for an issue as /:issue_id
 const getIssueComments = async (req, res) => {
   try {
     const { issue_id } = req.params;
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Check if issue exists
+    console.log("get all comments hit")
     const issue = await Issue.findById(issue_id);
     if (!issue) {
       return res.status(404).json({
@@ -136,7 +129,6 @@ const getIssueComments = async (req, res) => {
   }
 };
 
-// Get single comment as comment._id
 const getComment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -199,7 +191,6 @@ const getComment = async (req, res) => {
   }
 };
 
-// Update comment (only by creator or admin/staff)
 const updateComment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -287,7 +278,6 @@ const updateComment = async (req, res) => {
   }
 };
 
-// Delete comment (only by creator or admin/staff)
 const deleteComment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -317,7 +307,7 @@ const deleteComment = async (req, res) => {
     }
 
     // await IssueComment.findByIdAndDelete(id);
-      await comment.deleteOne();
+    await comment.deleteOne();
 
     return res.status(200).json({
       success: true,
