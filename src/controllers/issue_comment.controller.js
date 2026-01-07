@@ -5,7 +5,6 @@ import logger from "../utils/logger.js";
 const createComment = async (req, res) => {
   try {
     const { issue_id, comment_text } = req.body;
-    console.log(req.body, "this is req.nody")
     if (!issue_id || !comment_text) {
       return res.status(400).json({
         success: false,
@@ -72,7 +71,6 @@ const getIssueComments = async (req, res) => {
     const { issue_id } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    console.log("get all comments hit")
     const issue = await Issue.findById(issue_id);
     if (!issue) {
       return res.status(404).json({

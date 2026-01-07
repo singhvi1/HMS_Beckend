@@ -161,11 +161,8 @@ export const getAllIssues = async (req, res) => {
           studentQuery.user_id = { $in: users.map(u => u._id) };
         }
 
-        console.log("STUDENT QUERY →", studentQuery);
 
         const students = await Student.find(studentQuery).select("_id");
-        console.log(studentQuery)
-        console.log(students)
         query.raised_by = { $in: students.map(s => s._id) };
       }
 
@@ -216,8 +213,6 @@ export const getAllIssues = async (req, res) => {
       .lean();
 
     const total = await Issue.countDocuments(query);
-    console.log("ISSUES QUERY-beckend →", query);
-    console.log(total)
 
     return res.status(200).json({
       success: true,

@@ -565,7 +565,6 @@ export const toggleStudentStatus = async (req, res) => {
 export const deleteStudentProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
-    console.log(req.params, "this is req.paramas")
     const student = await Student.findOneAndDelete({ user_id });
 
     if (!student) {

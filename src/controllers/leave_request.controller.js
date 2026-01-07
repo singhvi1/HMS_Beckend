@@ -126,11 +126,8 @@ export const getAllLeaveRequests = async (req, res) => {
         studentQuery.room_number = new RegExp(room_number, "i")
       }
 
-      console.log("STUDENT QUERY →", studentQuery);
 
       const students = await Student.find(studentQuery).select("_id");
-      console.log(studentQuery)
-      console.log(students)
       if (students.length > 0) {
         studentSearchId = students.map(s => s._id)
       }
@@ -256,8 +253,6 @@ export const updateLeaveRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    console.log("update status called")
-    // Validation
     if (!status || !["approved", "rejected"].includes(status)) {
       return res.status(400).json({
         success: false,

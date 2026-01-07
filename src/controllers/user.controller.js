@@ -92,7 +92,6 @@ const logout = async (_req, res) => {
 };
 
 const addUser = async (req, res) => {
-  console.log("this is body ",req.body)
   try {
     const { full_name, email, phone, password, role } = req.body;
     
