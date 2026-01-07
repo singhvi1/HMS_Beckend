@@ -273,7 +273,6 @@ export const createStudentProfile = async (req, res) => {
 export const getStudentProfile = async (req, res) => {
   try {
     let targetUserId = req.params.id || req.user._id;
-    console.log(targetUserId)
     const student = await Student.findOne({ user_id: targetUserId })
       .populate([
         { path: "user_id", select: "full_name email phone role status" },

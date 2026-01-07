@@ -88,15 +88,14 @@ export const createIssue = async (req, res) => {
     await issue.populate(
       {
         path: "raised_by",
-        select: "full_name email role status",
-        populate: {
-          path: "student",
-          select: " sid branch room_id",
-          populate: {
-            path: "room_id",
-            select: "room_number block "
-          }
-        }
+        select: "sid branch room_id",
+        populate: [{
+          path: "user_id",
+          select: " full_name email status role",
+        }, {
+          path: "room_id",
+          select: "room_number block capacity is_active"
+        }]
       })
     return res.status(201).json({
       success: true,

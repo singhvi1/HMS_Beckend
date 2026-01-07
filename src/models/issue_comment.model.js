@@ -1,4 +1,4 @@
-import mongoose, {Schema} from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const issueCommentSchema = new Schema({
   issue_id: {
@@ -17,6 +17,8 @@ const issueCommentSchema = new Schema({
     trim: true
   }
 }, { timestamps: true });
+
+issueCommentSchema.index({ issue_id: 1, createdAt: -1 });
 
 const IssueComment = mongoose.model("IssueComment", issueCommentSchema);
 

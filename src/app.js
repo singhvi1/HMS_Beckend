@@ -42,8 +42,8 @@ app.use("/api/v1/students", studentRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/issues", issueRoutes);
 app.use("/api/v1/leave-requests", leaveRequestRoutes);
-app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/issue-comments", issueCommentRoutes);
+app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/disciplinary-cases", disciplinaryCaseRoutes);
 
 // Health check endpoint

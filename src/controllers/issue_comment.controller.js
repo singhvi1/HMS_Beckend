@@ -5,7 +5,7 @@ import logger from "../utils/logger.js";
 const createComment = async (req, res) => {
   try {
     const { issue_id, comment_text } = req.body;
-    console.log(req.body,"this is req.nody")
+    console.log(req.body, "this is req.nody")
     if (!issue_id || !comment_text) {
       return res.status(400).json({
         success: false,
@@ -70,7 +70,7 @@ const createComment = async (req, res) => {
 const getIssueComments = async (req, res) => {
   try {
     const { issue_id } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     console.log("get all comments hit")
     const issue = await Issue.findById(issue_id);
@@ -83,7 +83,7 @@ const getIssueComments = async (req, res) => {
 
     // Check access: students can only see comments on their own issues
     if (req.user.role === "student") {
-      if (!user.student || issue.raised_by.toString() !== req.user.student._id.toString()) {
+      if (!req.studentId || issue.raised_by.toString() !== req.studentId.toString()) {
         return res.status(403).json({
           success: false,
           message: "Access denied"
@@ -94,7 +94,7 @@ const getIssueComments = async (req, res) => {
     // Optimized: Get comments with populated user data in single query
     const comments = await IssueComment.find({ issue_id })
       .populate("commented_by", "full_name email role")
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -144,21 +144,8 @@ const getComment = async (req, res) => {
       });
     }
 
-    // Check access: students can only see comments on their own issues
-
-    /*if (req.user.role === "student") {
-      const issue = await Issue.findById(comment.issue_id._id);
-      const student = await Student.findOne({ user_id: req.user._id });
-      if (!student || issue.raised_by.toString() !== student._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied"
-        });
-      }
-    }*/
-
     if (req.user.role === "student") {
-      if (!req.user.student || comment.issue_id.raised_by.toString() !== req.user.student._id.toString()) {
+      if (!req.studentId || comment.issue_id.raised_by.toString() !== req.studentId.toString()) {
         return res.status(403).json({
           success: false,
           message: "Access denied to other student comments"

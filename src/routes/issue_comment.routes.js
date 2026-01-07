@@ -18,7 +18,7 @@ router.get("/all/:issue_id", auth, getIssueComments);
 
 // Get single issues  comment
 router.get("/:id", auth, getComment);
-//NOTE dont change order /issue/:issue_id and /:id
+//NOTE dont change order /all/:issue_id and /:id
 
 // Update comment
 router.patch("/:id", auth, updateComment);
