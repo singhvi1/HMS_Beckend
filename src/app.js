@@ -18,6 +18,7 @@ const app = express();
 //   "http://localhost:5173"
 // ];
 app.set("trust proxy", 1);
+app.use(cookieParser());
 
 app.use(cors({
   origin: "https://kkhostel.me",
@@ -27,7 +28,6 @@ app.use(cors({
 }));
 
 
-app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
