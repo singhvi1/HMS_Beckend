@@ -12,11 +12,11 @@ import "dotenv/config";
 
 const app = express();
 
-// const allowedOrigins = [
-//   "https://kkhostel.me",
-//   "https://www.kkhostel.me",
-//   "http://localhost:5173"
-// ];
+const allowedOrigins = [
+  "https://kkhostel.me",
+  "https://www.kkhostel.me",
+  "http://localhost:5173"
+];
 app.set("trust proxy", 1);
 app.use(cookieParser());
 
