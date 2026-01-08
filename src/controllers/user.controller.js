@@ -56,6 +56,7 @@ export const login = async (req, res) => {
       .cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: true,
+        sameSite:"none",
         expires: new Date(Date.now() + 1000 * 60 * 60 * 24)
       })
       .status(200)
@@ -79,6 +80,8 @@ export const logout = async (_req, res) => {
     return res
       .clearCookie("accessToken", {
         httpOnly: true,
+        secure:true,
+        sameSite:"none"
       })
       .status(200)
       .json({
