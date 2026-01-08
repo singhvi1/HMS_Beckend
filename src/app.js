@@ -22,7 +22,10 @@ app.set("trust proxy", 1);
 app.use(cors({
   origin: "https://kkhostel.me",
   credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
 
 app.use(cookieParser());
 app.use(express.json());
