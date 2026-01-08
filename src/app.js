@@ -17,19 +17,17 @@ const app = express();
 //   "https://www.kkhostel.me",
 //   "http://localhost:5173"
 // ];
+app.set("trust proxy", 1);
+
 app.use(cors({
   origin: "https://kkhostel.me",
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
-  optionsSuccessStatus: 204,
-  preflightContinue: false
 }));
 
-app.use(express.static("public"));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
-app.use(cookieParser());
+app.use(express.static("public"));
 
 
 
