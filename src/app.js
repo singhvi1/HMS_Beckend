@@ -12,21 +12,13 @@ import "dotenv/config";
 
 const app = express();
 
-const allowedOrigins = [
-  "https://kkhostel.me",
-  "https://www.kkhostel.me",
-  "http://localhost:5173"
-];
+// const allowedOrigins = [
+//   "https://kkhostel.me",
+//   "https://www.kkhostel.me",
+//   "http://localhost:5173"
+// ];
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("CORS not allowed"), false);
-  },
+  origin: "https://kkhostel.me",
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
