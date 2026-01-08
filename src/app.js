@@ -21,7 +21,13 @@ app.set("trust proxy", 1);
 app.use(cookieParser());
 
 app.use(cors({
-  origin: "https://kkhostel.me",
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
