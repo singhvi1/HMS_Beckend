@@ -3,6 +3,7 @@ import { Schema, model } from "mongoose";
 import Room from "./room.model.js";
 import Issue from "./issue.model.js";
 import Leave from "./leave_request.model.js";
+import IssueComment from "./issue_comment.model.js";
 
 
 const studentSchema = new Schema(
