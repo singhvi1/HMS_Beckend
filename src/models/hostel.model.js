@@ -22,7 +22,8 @@ const hostelSchema = new mongoose.Schema(
 
         floors_per_block: {
             type: Number,
-            min: 1
+            min: 1,
+            default: 3,
         },
 
         rooms_per_floor: {
@@ -41,6 +42,10 @@ const hostelSchema = new mongoose.Schema(
         is_active: {
             type: Boolean,
             default: true
+        },
+        allotment: {
+            type: Boolean,
+            default: false,
         }
     },
     { timestamps: true }

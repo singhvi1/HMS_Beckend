@@ -219,6 +219,49 @@ export const toggleHostelStatus = async (req, res) => {
     });
   }
 };
+export const toggleAllotment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const hostel = await Hostel.findById(id);
+
+    if (!hostel) {
+      logger.warn("TOGGLE_ALLOTMENT: Hostel not found", { hostel_id: id });
+
+      return res.status(404).json({
+        success: false,
+        message: "Hostel not found",
+      });
+    }
+
+    hostel.allotment = !hostel.allotment;
+    await hostel.save();
+
+    logger.info("TOGGLE_ALLOTMENT: Allotment status changed", {
+      hostel_id: id,
+      allotment: hostel.allotment,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Allotment is now ${
+        hostel.allotment ? "OPEN" : "CLOSED"
+      }`,
+      data: {
+        hostel_id: hostel._id,
+        allotment: hostel.allotment,
+      },
+    });
+  } catch (error) {
+    logger.error("TOGGLE_ALLOTMENT: Error toggling allotment", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to toggle allotment",
+    });
+  }
+};
+
 
 export const deleteHostel = async (req, res) => {
   try {
