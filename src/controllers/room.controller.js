@@ -75,6 +75,7 @@ export const getAllRooms = async (req, res) => {
         }
       })
       .sort({ block: 1, room_number: 1 })
+      .lean()
 
 
     logger.info("GET_ALL_ROOMS: Rooms fetched", {
@@ -252,3 +253,93 @@ export const deleteRoom = async (req, res) => {
     });
   }
 };
+
+
+export const adjustRoomCapacity = async (req, res) => {
+  const { action, roomCount } = req.body;
+  const maxCapcity = 3;
+  if (![-1, +1].includes(action)) {
+    return res.status(400).json({
+      message: "action of +1/-1 only allowed"
+    })
+  }
+  if (!roomCount || roomCount <= 0) {
+    return res.status(400).json({
+      message: "RoomCount should be greater than 0"
+    })
+  }
+
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+    // Find Room -> loop -> update
+
+    const rooms = await Room.find(
+      {
+        filling_order: { $ne: null }
+      }).sort({ filling_order: -1 }).limit(roomCount).session(session);
+
+    if (rooms.length === 0) {
+      throw new Error("No rooms eligible for capacity adjustment");
+    }
+    const preview = [];
+    for (const room of rooms) {
+      const newCapacity = room.capacity + action;
+
+      if (newCapacity > maxCapcity) {
+        throw new Error(
+          `Cannot increase capacity beyond ${maxCapcity} for room ${room.block}-${room.room_number}`
+        );
+      }
+
+      if (room?.occupied_count > newCapacity) {
+        throw new Error(`Cannot reduce capacity of room ${room.block}-${room.room_number}. ` + `Occupied: ${room?.occupied_count},  Capacity: ${room.capacity}`)
+      }
+
+      const newStatus = room.occupied_count === newCapacity ? 'FULL' : "AVAILABLE";
+
+      preview.push({
+        room: `${room.block}-${room.room_number}`,
+        currentCapacity: room.capacity, newCapacity,
+        occupied: room.occupied_count,
+        statusAfter: newStatus,
+      });
+      await Room.updateOne(
+        { _id: room._id },
+        {
+          capacity: newCapacity,
+          allocation_status: newStatus,
+        },
+        { session }
+      )
+    }
+    await session.commitTransaction();
+
+    return res.status(200).json({
+      message: "Room capacity action applied successfully",
+      action,
+      actionOnRoom: rooms.length,
+      rooms: preview,
+    })
+
+  } catch (error) {
+    await session.abortTransaction()
+    logger.error("Action for capacity Failed", {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    return res.status(400).json({
+      success: false,
+      message: "Action for capacity Failed: " + error.message || "Action for capacity Failed"
+    });
+  } finally {
+    session.endSession();
+  }
+}
+
+
+
+
+

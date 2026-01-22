@@ -1,9 +1,6 @@
 import Hostel from "../models/hostel.model.js";
 import logger from "../utils/logger.js";
 
-
-
-
 export const createHostel = async (req, res) => {
   try {
     const { name, code, blocks, floors_per_block, rooms_per_floor, total_rooms } = req.body;
@@ -49,7 +46,7 @@ export const createHostel = async (req, res) => {
 
     logger.info("CREATE_HOSTEL: Hostel created successfully", {
       hostel_id: hostel._id,
-      code: hostel.code
+      code: hostel?.code
     });
 
     return res.status(201).json({
@@ -98,7 +95,6 @@ export const getHostelById = async (req, res) => {
     const { id } = req.params;
 
     const hostel = await Hostel.findById(id);
-
     if (!hostel) {
       logger.warn("GET_HOSTEL_BY_ID: Hostel not found", { hostel_id: id });
 
@@ -180,7 +176,6 @@ export const updateHostel = async (req, res) => {
   }
 };
 
-
 export const toggleHostelStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -219,51 +214,9 @@ export const toggleHostelStatus = async (req, res) => {
     });
   }
 };
-export const toggleAllotment = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const hostel = await Hostel.findById(id);
-
-    if (!hostel) {
-      logger.warn("TOGGLE_ALLOTMENT: Hostel not found", { hostel_id: id });
-
-      return res.status(404).json({
-        success: false,
-        message: "Hostel not found",
-      });
-    }
-
-    hostel.allotment = !hostel.allotment;
-    await hostel.save();
-
-    logger.info("TOGGLE_ALLOTMENT: Allotment status changed", {
-      hostel_id: id,
-      allotment: hostel.allotment,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `Allotment is now ${
-        hostel.allotment ? "OPEN" : "CLOSED"
-      }`,
-      data: {
-        hostel_id: hostel._id,
-        allotment: hostel.allotment,
-      },
-    });
-  } catch (error) {
-    logger.error("TOGGLE_ALLOTMENT: Error toggling allotment", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to toggle allotment",
-    });
-  }
-};
-
 
 export const deleteHostel = async (req, res) => {
+
   try {
     const { id } = req.params;
 
@@ -293,6 +246,64 @@ export const deleteHostel = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to delete hostel"
+    });
+  }
+};
+
+//allotment
+export const toggleAllotment = async (req, res) => {
+
+  try {
+    const { id } = req.params;
+    const { allotment_status } = req.body;
+
+    if (!["CLOSED", "PHASE_A", "PHASE_B"].includes(allotment_status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid allotment status"
+      })
+    };
+    const hostel = await Hostel.findById(id);
+
+    if (!hostel) {
+      logger.warn("TOGGLE_ALLOTMENT: Hostel not found", { hostel_id: id });
+
+      return res.status(404).json({
+        success: false,
+        message: "Hostel not found",
+      });
+    }
+    const currentStatus = hostel.allotment_status;
+    const allowedNextStates = {
+      CLOSED: ["PHASE_A"],
+      PHASE_A: ["PHASE_B", "CLOSED"],
+      PHASE_B: ["CLOSED"]
+    };
+    if (!allowedNextStates[currentStatus].includes(allotment_status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Invalid transition from ${currentStatus} to ${allotment_status}`
+      });
+    }
+    hostel.allotment_status = allotment_status;
+    await hostel.save();
+
+    logger.info("TOGGLE_ALLOTMENT: Allotment status changed", {
+      hostel_id: id,
+      allotment: hostel.allotment,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Allotment moved from ${currentStatus} → ${allotment_status}`,
+      data: { allotment_status, id }
+    });
+  } catch (error) {
+    logger.error("TOGGLE_ALLOTMENT: Error toggling allotment", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to toggle allotment",
     });
   }
 };

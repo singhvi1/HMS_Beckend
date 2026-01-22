@@ -15,7 +15,7 @@ export const auth = async (req, res, next) => {
       hour12: false,
     });
 
-  // console.log("AUTH HIT:", req.method, req.originalUrl, istTimestamp());
+  console.log("AUTH HIT:", req.method, req.originalUrl, istTimestamp());
 
   try {
     const token = req.cookies?.accessToken ||

@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { createRoom, deleteRoom, getAllRooms, getRoomById, toggleRoomStatus, updateRoom } from "../controllers/room.controller.js";
+import { adjustRoomCapacity, createRoom, deleteRoom, getAllRooms, getRoomById, toggleRoomStatus, updateRoom } from "../controllers/room.controller.js";
 import { auth } from "../middlewares/auth.js";
 import { authorizeRoles } from "../middlewares/role.auth.js";
+
 
 
 const router = Router();
@@ -14,10 +15,13 @@ router.patch("/:id/toggle", auth, authorizeRoles("admin"), toggleRoomStatus);
 
 router.delete("/:id", auth, authorizeRoles("admin"), deleteRoom);
 
-// Read-only (admin/staff/student if you want)
-router.get("/", auth, getAllRooms);
-router.get("/:id", auth, getRoomById);
 
+
+router.get("/", auth, authorizeRoles("admin"), getAllRooms);
+
+router.get("/:id", auth, authorizeRoles("admin"), getRoomById);
+
+router.patch("/adjust-capacity", authorizeRoles("admin"), adjustRoomCapacity)
 
 
 export default router;

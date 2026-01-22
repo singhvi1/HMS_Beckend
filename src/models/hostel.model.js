@@ -43,10 +43,14 @@ const hostelSchema = new mongoose.Schema(
             type: Boolean,
             default: true
         },
-        allotment: {
-            type: Boolean,
-            default: false,
+        allotment_status: {
+            type: String,
+            enum: ["CLOSED", "PHASE_A", "PHASE_B"],
+            default: "CLOSED",
+            index: true
         }
+
+
     },
     { timestamps: true }
 );

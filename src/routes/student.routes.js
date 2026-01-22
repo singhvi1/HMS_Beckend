@@ -8,7 +8,13 @@ import {
   updateStudentProfile,
   deleteStudentProfile,
   createUserStudent,
-  toggleStudentStatus
+  toggleStudentStatus,
+  getPhaseARooms,
+  phaseARegisterStudent,
+  phaseBRegisterStudent,
+  getMyAllotmentStatus,
+  verifyStudentAndAllocate,
+  getVerificationRequests
 } from "../controllers/student_profile.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
@@ -32,5 +38,16 @@ router.patch("/status/:user_id", auth, authorizeRoles("admin", "staff"), toggleS
 
 router.delete("/:user_id", auth, authorizeRoles("admin"), deleteStudentProfile);
 
+
+//allotment: 
+
+router.get("/rooms/phase-a", getPhaseARooms)
+router.post("/phase-a/register", phaseARegisterStudent)
+router.post("/phase-b/register", phaseBRegisterStudent)
+router.get("/allotment-status", auth, getMyAllotmentStatus)
+
+
+router.patch("/:studentUserId/verify", authorizeRoles("admin", verifyStudentAndAllocate))
+router.get('/verification-request', authorizeRoles("admin"), getVerificationRequests)
 export default router;
 

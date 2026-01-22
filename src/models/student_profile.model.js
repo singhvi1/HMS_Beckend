@@ -4,6 +4,7 @@ import Room from "./room.model.js";
 import Issue from "./issue.model.js";
 import Leave from "./leave_request.model.js";
 import IssueComment from "./issue_comment.model.js";
+import User from "./user.model.js";
 
 
 const studentSchema = new Schema(
@@ -17,7 +18,9 @@ const studentSchema = new Schema(
     room_id: {
       type: Schema.Types.ObjectId,
       ref: "Room",
-      required: true,
+      default: null,
+      index: true,
+      // required: true,
     },
     sid: {
       type: String,
@@ -55,14 +58,35 @@ const studentSchema = new Schema(
       type: Date,
       default: null
     },
+    room_out: {
+      type: Date,
+    },
     branch: {
       type: String,
       required: true,
       trim: true,
     },
-    room_out: {
-      type: Date,
+
+    allotment_phase: {
+      type: String,
+      enum: ["A", "B"],
+      default: null
+    },
+
+    allotment_status: {
+      type: String,
+      enum: ["PENDING", "TEMP_LOCKED", "ALLOTTED", "CANCELLED"],
+      default: "PENDING",
+      index: true
+    },
+    verification_status: {
+      type: String,
+      enum: ["PENDING", "VERIFIED", "REJECTED"],
+      default: "PENDING",
+      index: true
     }
+
+
   },
   {
     timestamps: true
@@ -70,13 +94,23 @@ const studentSchema = new Schema(
 );
 
 studentSchema.index({ branch: 1, createdAt: -1 });
-
+//compound unique index
+studentSchema.index(
+  { user_id: 1, allotment_status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { allotment_status: { $ne: "CANCELLED" } }
+  }
+);
 studentSchema.pre("save", async function () {
   try {
     if (!this.isNew && !this.isModified("room_id")) return;
-
     if (!this.room_id) {
-      throw new Error("room_id is required");
+      this.allotment_status = "PENDING";
+      return
+    }
+    if (this.allotment_status === "ALLOTTED" && this.verification_status !== "VERIFIED") {
+      throw new Error("Cannot allot room without verification");
     }
     const session = this.$session();
     const room = await Room
@@ -93,9 +127,9 @@ studentSchema.pre("save", async function () {
     throw err;
   }
 });
-studentSchema.pre("findOneAndUpdate", async function (next) {
+studentSchema.pre("findOneAndUpdate", async function () {
   const update = this.getUpdate();
-  if (!update?.room_id) return next();
+  if (!update?.room_id) return;
 
   const session = this.getOptions().session;
 
@@ -105,26 +139,13 @@ studentSchema.pre("findOneAndUpdate", async function (next) {
     .session(session);
 
   if (!room) {
-    return next(new Error("Invalid room_id"));
+    throw new Error("Invalid room_id");
   }
 
   update.block = room.block;
   update.room_number = room.room_number;
-  next();
 });
 
-
-studentSchema.post("findOneAndDelete", async function (doc) {
-  if (!doc) return;
-  const issues = await Issue.find({ raised_by: doc._id }).select("_id");
-  const issueIds = issues.map(i => i._id);
-
-  await Promise.all([
-    IssueComment.deleteMany({ issue_id: { $in: issueIds } }),
-    Issue.deleteMany({ raised_by: doc._id }),
-    Leave.deleteMany({ student_id: doc._id }),
-  ]);
-});
 
 const Student = model("Student", studentSchema);
 export default Student;
