@@ -500,16 +500,23 @@ export const phaseARegisterStudent = async (req, res) => {
       .populate("room_id", "block room_number capacity yearly_rent")
       .lean();
 
-    const token = user.generateAccessToken();
+    const accessToken = user.generateAccessToken();
 
-    return res.status(201).json({
-      success: true,
-      message: "Phase-A registration successful. Room temporarily reserved.",
-      data: {
-        student: populatedStudent,
-        token
-      }
-    });
+    return res
+      .cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        expires: new Date(Date.now() + 1000 * 60 * 60 * 24)
+      })
+      .status(201).json({
+        success: true,
+        message: "Phase-A registration successful. Room temporarily reserved.",
+        data: {
+          student: populatedStudent,
+          token
+        }
+      });
 
   } catch (error) {
     await session.abortTransaction();
