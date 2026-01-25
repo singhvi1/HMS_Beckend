@@ -218,7 +218,7 @@ export const getCurrentUser = async (req, res) => {
     });
   }
 };
-export const getQuickInfo = async (req, res) => {
+export const getQuickInfo = async (_req, res) => {
   try {
     const [totalStudents, totalRooms, activeRooms, pendingIssues,] = await Promise.all([
       Student.countDocuments(),

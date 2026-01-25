@@ -78,15 +78,14 @@ roomSchema.pre("save", function () {
 });
 
 roomSchema.pre("findOneAndUpdate", async function () {
-    const update = this.getUpdate();
-    const session = this.getOptions().session;
-
+    room = this;
+    const update = room.getUpdate();
+    const session = room.getOptions().session;
     if (!update?.$inc?.occupied_count) return;
-
-    const room = await this.model.findOne(this.getQuery()).session(session)
+    const room = await room.model.findOne(room.getQuery()).session(session)
 
     if (!room) {
-        throw new Error("No such room found via hook ");
+        throw new Error("No such vacant room found  via hook ");
     }
     const newOccupied =
         room.occupied_count + update.$inc.occupied_count;

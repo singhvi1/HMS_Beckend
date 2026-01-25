@@ -7,7 +7,14 @@ import { authorizeRoles } from "../middlewares/role.auth.js";
 
 const router = Router();
 
+
+router.get("/", auth, authorizeRoles("admin"), getAllRooms);
+
+router.get("/:id", auth, authorizeRoles("admin"), getRoomById);
+
 router.post("/", auth, authorizeRoles("admin"), createRoom);
+
+router.patch("/adjust-capacity", auth, authorizeRoles("admin"), adjustRoomCapacity)
 
 router.patch("/:id", auth, authorizeRoles("admin"), updateRoom);
 
@@ -17,11 +24,9 @@ router.delete("/:id", auth, authorizeRoles("admin"), deleteRoom);
 
 
 
-router.get("/", auth, authorizeRoles("admin"), getAllRooms);
 
-router.get("/:id", auth, authorizeRoles("admin"), getRoomById);
 
-router.patch("/adjust-capacity", authorizeRoles("admin"), adjustRoomCapacity)
+
 
 
 export default router;

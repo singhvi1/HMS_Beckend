@@ -6,7 +6,6 @@ const roomRequestSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Student",
       required: true,
-      index: true
     },
 
     phase: {
@@ -42,7 +41,7 @@ const roomRequestSchema = new Schema(
 );
 
 roomRequestSchema.index({ status: 1, createdAt: 1 });
-
+//only one pending and tempLocked allowed for one student success/faild multiple;
 roomRequestSchema.index(
   { student_id: 1 },
   {

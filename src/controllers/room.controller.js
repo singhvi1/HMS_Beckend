@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import Room from "../models/room.model.js";
+import RoomRequest from "../models/roomRequest.model.js";
 import logger from "../utils/logger.js";
 
 
@@ -256,11 +258,14 @@ export const deleteRoom = async (req, res) => {
 
 
 export const adjustRoomCapacity = async (req, res) => {
-  const { action, roomCount } = req.body;
-  const maxCapcity = 3;
-  if (![-1, +1].includes(action)) {
+  const action = Number(req.body.action);
+  const roomCount = Number(req.body.roomCount);
+  const maxCapcity = 2;
+  if (![-1, +1, 1].includes(action)) {
     return res.status(400).json({
-      message: "action of +1/-1 only allowed"
+      success: false,
+      message: "action of +1/-1 only allowed",
+      data: action,
     })
   }
   if (!roomCount || roomCount <= 0) {
@@ -281,16 +286,17 @@ export const adjustRoomCapacity = async (req, res) => {
       }).sort({ filling_order: -1 }).limit(roomCount).session(session);
 
     if (rooms.length === 0) {
-      throw new Error("No rooms eligible for capacity adjustment");
+      throw new Error("No rooms eligible for capacity adjustment as per filling order");
     }
     const preview = [];
     for (const room of rooms) {
       const newCapacity = room.capacity + action;
 
       if (newCapacity > maxCapcity) {
-        throw new Error(
-          `Cannot increase capacity beyond ${maxCapcity} for room ${room.block}-${room.room_number}`
-        );
+        // throw new Error(
+        //   `Cannot increase capacity beyond ${maxCapcity} for room ${room.block}-${room.room_number}`
+        // );
+        continue
       }
 
       if (room?.occupied_count > newCapacity) {
@@ -338,6 +344,9 @@ export const adjustRoomCapacity = async (req, res) => {
     session.endSession();
   }
 }
+
+
+
 
 
 
