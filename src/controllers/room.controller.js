@@ -59,14 +59,16 @@ export const createRoom = async (req, res) => {
 
 export const getAllRooms = async (req, res) => {
   try {
-    const { block, floor, is_active } = req.query;
+    const { block, floor, is_active, allocation_status } = req.query;
 
     const filter = {};
 
     if (block) filter.block = block;
     if (floor !== undefined) filter.floor = Number(floor);
     if (is_active !== undefined) filter.is_active = is_active === "true";
-
+    if (allocation_status) {
+      filter.allocation_status = allocation_status;
+    }
     const rooms = await Room.find(filter)
       .populate({
         path: "occupants",
@@ -96,7 +98,7 @@ export const getAllRooms = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch rooms"
+      message: error.message ||"Failed to fetch rooms"
     });
   }
 };

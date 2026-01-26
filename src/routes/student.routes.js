@@ -9,7 +9,8 @@ import {
   deleteStudentProfile,
   createUserStudent,
   toggleStudentStatus,
- 
+  downloadStudentDocument,
+
 } from "../controllers/student_profile.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
@@ -30,6 +31,8 @@ router.patch("/:user_id", auth, updateStudentProfile);
 router.patch("/edit/:user_id", auth, authorizeRoles("admin", "staff"), updateStudentProfile,);
 
 router.patch("/status/:user_id", auth, authorizeRoles("admin", "staff"), toggleStudentStatus);
+
+router.get("/document/:user_id", auth, downloadStudentDocument);
 
 router.delete("/:user_id", auth, authorizeRoles("admin"), deleteStudentProfile);
 

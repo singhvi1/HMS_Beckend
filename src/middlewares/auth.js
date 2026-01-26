@@ -1,5 +1,6 @@
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import logger from "../utils/logger.js";
 
 export const auth = async (req, res, next) => {
   const istTimestamp = () =>
@@ -15,7 +16,7 @@ export const auth = async (req, res, next) => {
       hour12: false,
     });
 
-  console.log("AUTH HIT:", req.method, req.originalUrl, istTimestamp());
+  logger.info("AUTH HIT:", { method: req.method, url: req.originalUrl, time: istTimestamp() });
 
   try {
     const token = req.cookies?.accessToken ||

@@ -388,7 +388,7 @@ export const phaseARegisterStudent = async (req, res) => {
     const {
       full_name, email, phone, password,
       sid, branch, permanent_address, guardian_name, guardian_contact,
-      room_id,
+      room_id, room_number, block
     } = req.body
     //check whether allocation phase On :
     const hostel = await Hostel.findOne({ is_active: true }).session(session);
@@ -401,12 +401,24 @@ export const phaseARegisterStudent = async (req, res) => {
     //validat all incoming data ;
     //check existing user student ;
 
-    if (!full_name || !email || !phone || !password || !sid || !room_id) {
+    if (!full_name || !email || !phone || !password || !sid || !guardian_contact || !permanent_address) {
       throw new Error("Missing required fields");
     }
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedSid = sid.trim();
+    const normalizedBlock = block?.toLowerCase().trim();
+    const normalizedRoomNumber = room_number?.toString().trim();
+
+    const hasRoomId = Boolean(room_id);
+    const hasRoomNumberAndBlock = Boolean(normalizedRoomNumber && normalizedBlock);
+    if (hasRoomId && hasRoomNumberAndBlock) {
+      throw new Error("Provide either room_id OR room_number with block, not both");
+    }
+
+    if (!hasRoomId && !hasRoomNumberAndBlock) {
+      throw new Error("Room information is required");
+    }
 
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -459,17 +471,32 @@ export const phaseARegisterStudent = async (req, res) => {
     //room -> aviable -> student :allotment_status:alloted,veri:pending
     //for verification: roomrequest crate 
 
+    let room;
+    if (hasRoomNumberAndBlock) {
+      room = await Room.findOneAndUpdate(
+        {
+          room_number: normalizedRoomNumber,
+          block: normalizedBlock,
+          is_active: true,
+          allocation_status: "AVAILABLE",
+          $expr: { $lt: ["$occupied_count", "$capacity"] }
+        },
+        { $inc: { occupied_count: 1 }, },
+        { new: true, session }
+      )
 
-    const room = await Room.findOneAndUpdate(
-      {
-        _id: room_id,
-        is_active: true,
-        allocation_status: "AVAILABLE",
-        $expr: { $lt: ["$occupied_count", "$capacity"] }
-      },
-      { $inc: { occupied_count: 1 }, },
-      { new: true, session }
-    )
+    } else {
+      room = await Room.findOneAndUpdate(
+        {
+          _id: room_id,
+          is_active: true,
+          allocation_status: "AVAILABLE",
+          $expr: { $lt: ["$occupied_count", "$capacity"] }
+        },
+        { $inc: { occupied_count: 1 }, },
+        { new: true, session }
+      )
+    }
     if (!room) {
       throw new Error("Room not found or Not available ")
     }
@@ -501,7 +528,7 @@ export const phaseARegisterStudent = async (req, res) => {
       .lean();
 
     const accessToken = user.generateAccessToken();
-
+    console.log("hitted")
     return res
       .cookie("accessToken", accessToken, {
         httpOnly: true,
@@ -514,7 +541,6 @@ export const phaseARegisterStudent = async (req, res) => {
         message: "Phase-A registration successful. Room temporarily reserved.",
         data: {
           student: populatedStudent,
-          token
         }
       });
 
@@ -690,9 +716,10 @@ export const adjustRoomCapacity = async (req, res) => {
 
     const rooms = await Room.find(
       {
-        filling_order: { $ne: null }
+        filling_order: { $ne: null },
+        $expr: { $lt: ["$capacity", maxCapcity] }
       }).sort({ filling_order: -1 }).limit(roomCount).session(session);
-
+    // console.log(rooms)
     if (rooms.length === 0) {
       throw new Error("No rooms eligible for capacity adjustment as per filling order");
     }
@@ -700,10 +727,10 @@ export const adjustRoomCapacity = async (req, res) => {
     for (const room of rooms) {
       const newCapacity = room.capacity + action;
       if (newCapacity > maxCapcity) {
-        throw new Error(
-          `Cannot increase capacity beyond ${maxCapcity} for room ${room.block}-${room.room_number}`
-        );
-
+        // throw new Error(
+        //   `Cannot increase capacity beyond ${maxCapcity} for room ${room.block}-${room.room_number}`
+        // );
+        continue;
       }
 
       if (room?.occupied_count > newCapacity) {
@@ -804,6 +831,7 @@ export const verifyStudentAndAllocate = async (req, res) => {
       }
     }
 
+    let responseData = {};
 
     //phase A actions: ["VERIFIED", "REJECTED"]
     if (roomRequest.phase === "A") {
@@ -819,6 +847,7 @@ export const verifyStudentAndAllocate = async (req, res) => {
       else if (status === "REJECTED") {
         student.verification_status = "REJECTED";
         student.allotment_status = "CANCELLED";
+
         roomRequest.status = "FAILED";
         roomRequest.processed_at = new Date();
         await Room.findOneAndUpdate(
@@ -838,7 +867,10 @@ export const verifyStudentAndAllocate = async (req, res) => {
     //pahse B : -> status: VERIFIED : ["VERIFIED", "REJECTED"] 
     if (roomRequest.phase === "B") {
       if (status === "VERIFIED") {
+
         student.verification_status = "VERIFIED";
+
+        //allocate room
         const room = await Room.findOneAndUpdate(
           {
             is_active: true,
@@ -863,6 +895,10 @@ export const verifyStudentAndAllocate = async (req, res) => {
           student.room_id = room._id;
           student.allotment_status = "ALLOTTED";
 
+          responseData.room_number = room.room_number;
+          responseData.block = room.block;
+          responseData.capacity = room.capacity;
+
           roomRequest.status = "SUCCESS";
           roomRequest.requested_room_id = room._id;
           roomRequest.allocated_room_id = room._id;
@@ -873,10 +909,13 @@ export const verifyStudentAndAllocate = async (req, res) => {
       if (status === "REJECTED") {
         student.verification_status = "REJECTED";
         student.allotment_status = "CANCELLED";
+
         roomRequest.status = "FAILED";
         roomRequest.processed_at = new Date();
       }
     }
+    responseData.allotment_status = student.allotment_status;
+    responseData.verification_status = student.verification_status;
 
     await student.save({ session });
     await roomRequest.save({ session });
@@ -884,7 +923,7 @@ export const verifyStudentAndAllocate = async (req, res) => {
 
     return res.status(200).json({
       message: `student ${student.sid} status updated to ${status.toLowerCase()} successfully`,
-      studentUserId,
+      data: responseData,
     })
   } catch (error) {
     await session.abortTransaction()

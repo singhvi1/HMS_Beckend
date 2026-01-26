@@ -81,7 +81,12 @@ roomSchema.pre("findOneAndUpdate", async function () {
     const update = this.getUpdate();
     const session = this.getOptions().session;
     if (!update?.$inc?.occupied_count) return;
-    const room = await this.model.findOne(this.getQuery()).session(session)
+
+    let query = this.model.findOne(this.getQuery());
+    if (session) {
+        query = query.session(session);
+    }
+    const room = await query;
 
     if (!room) {
         throw new Error("No such vacant room found  via hook ");

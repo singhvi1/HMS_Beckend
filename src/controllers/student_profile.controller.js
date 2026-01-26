@@ -5,11 +5,11 @@ import Room from "../models/room.model.js"
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import RoomRequest from "../models/roomRequest.model.js";
-import Hostel from "../models/hostel.model.js";
 import Issue from "../models/issue.model.js";
 import IssueComment from "../models/issue_comment.model.js";
 import LeaveRequest from "../models/leave_request.model.js";
-
+import puppeteer from "puppeteer";
+import { studentProfileHTML } from "../utils/templates.js";
 
 export const createUserStudent = async (req, res) => {
   const session = await mongoose.startSession();
@@ -551,14 +551,56 @@ export const toggleStudentStatus = async (req, res) => {
   }
 };
 
+export const downloadStudentDocument = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    const student = await Student.findOne({ user_id: user_id })
+      .populate("room_id")
+      .populate("user_id");
+    logger.info("Generating PDF for student", { student: student });
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const html = studentProfileHTML(student);
+
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true
+    });
+
+    await browser.close();
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=${student.sid}_verification.pdf`,
+    });
+
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    logger.error("DOWNLOAD STUDENT DOCUMENT", error);
+    res.status(500).json({ message: "Failed to generate PDF" });
+  }
+}
 
 export const deleteStudentProfile = async (req, res) => {
-  const session = mongoose.startSession();
+  const session = await mongoose.startSession();
   try {
-    (await session).startTransaction();
+    session.startTransaction();;
 
     const { user_id } = req.params;
-    const student = await Student.findOneAndDelete({ user_id });
+    const student = await Student.findOneAndDelete({ user_id }).session(session);
 
     if (!student) {
       throw new Error("No such student found")
@@ -571,26 +613,16 @@ export const deleteStudentProfile = async (req, res) => {
       );
     }
 
-    await RoomRequest.deleteMany(
-      { student_id: student._id },
-      { session }
-    );
-    const issues = await Issue.find(
-      { raised_by: student._id },
-      { _id: 1 }
-    ).session(session);
-    const issueIds = issues.map(i => i._id);
+
 
     await Promise.all([
-      IssueComment.deleteMany({ issue_id: { $in: issueIds } }).session(session),
+      RoomRequest.deleteMany({ student_id: student._id }).session(session),
       Issue.deleteMany({ raised_by: student._id }).session(session),
       LeaveRequest.deleteMany({ student_id: student._id }).session(session),
+      IssueComment.deleteMany({ issue_id: student._id }).session(session),
+      Student.deleteOne({ _id: student._id }).session(session),
+      User.deleteOne({ _id: student.user_id }).session(session),
     ]);
-
-    await Student.deleteOne({ _id: student._id }).session(session);
-
-    await User.deleteOne({ _id: student.user_id }).session(session);
-
     await session.commitTransaction();
 
 
@@ -602,7 +634,7 @@ export const deleteStudentProfile = async (req, res) => {
 
   } catch (error) {
     logger.error("DELETE STUDENT PROFILE", error);
-    (await session).abortTransaction();
+    await session.abortTransaction();
     return res.status(500).json({
       success: false,
       message: "Failed to delete student profile"
