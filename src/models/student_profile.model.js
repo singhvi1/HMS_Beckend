@@ -44,6 +44,17 @@ const studentSchema = new Schema(
       minLength: 10,
       maxLength: 10,
     },
+    profile_photo: {
+      url: {
+        type: String,
+        default: null,
+      },
+      public_id: {
+        type: String,
+        default: null,
+      },
+    },
+
     block: {
       type: String,
       index: true,

@@ -7,5 +7,7 @@ import issueRoutes from "./issue.routes.js";
 import issueCommentRoutes from "./issue_comment.routes.js";
 import disciplinaryCaseRoutes from "./disciplinary_case.routes.js"
 import allotmentRoutes from "./allotment.routes.js"
+import testRoutes from "./test.routes.js"
 
-export { userRoutes, studentRoutes, announcementRoutes, leaveRequestRoutes, paymentRoutes, issueCommentRoutes, issueRoutes, disciplinaryCaseRoutes, allotmentRoutes }
+
+export { userRoutes, studentRoutes, announcementRoutes, leaveRequestRoutes, paymentRoutes, issueCommentRoutes, issueRoutes, disciplinaryCaseRoutes, allotmentRoutes, testRoutes }

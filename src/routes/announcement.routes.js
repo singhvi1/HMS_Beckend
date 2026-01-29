@@ -6,25 +6,31 @@ import {
   getAllAnnouncements,
   getAnnouncement,
   updateAnnouncement,
-  deleteAnnouncement
+  deleteAnnouncement,
+  uploadAnnouncemnetFiles
 } from "../controllers/annoucement.controller.js";
-import { upload } from "../middlewares/multer.middleware.js";
+import { announcementGalleryMulter, announcementPdfsMulter } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-// Create announcement (admin/staff only)
-router.post("/", auth, upload.single("file"), authorizeRoles("admin", "staff"), createAnnouncement);
+router.post("/", auth, authorizeRoles("admin", "staff"), createAnnouncement);
 
-// Get all announcements (all logedin users)
+router.post("/upload/images/:id", auth, authorizeRoles("admin", "staff"),
+  announcementGalleryMulter, uploadAnnouncemnetFiles
+);
+router.post("/upload/pdfs/:id", auth, authorizeRoles("admin", "staff"),
+  announcementPdfsMulter, uploadAnnouncemnetFiles
+);
+
+
 router.get("/", auth, getAllAnnouncements);
 
-// Get single announcement (all logined users)
 router.get("/:id", auth, getAnnouncement);
 
-// Update announcement (admin/staff or creator)
-router.patch("/:id", auth, upload.single("file"), authorizeRoles("admin", "staff"), updateAnnouncement);
 
-// Delete announcement (admin/staff or creator)
+router.patch("/:id", auth, authorizeRoles("admin", "staff"), updateAnnouncement);
+
+
 router.delete("/:id", auth, authorizeRoles("admin", "staff"), deleteAnnouncement);
 
 export default router;

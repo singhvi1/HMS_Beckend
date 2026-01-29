@@ -528,7 +528,7 @@ export const phaseARegisterStudent = async (req, res) => {
       .lean();
 
     const accessToken = user.generateAccessToken();
-    console.log("hitted")
+    // console.log("hitted")
     return res
       .cookie("accessToken", accessToken, {
         httpOnly: true,

@@ -8,10 +8,18 @@ const announcementSchema = new Schema({
   notice_url: {
     type: String,
   },
-  image: {
-    type: [String],
-    default: ["https://static.vecteezy.com/system/resources/previews/047/627/512/non_2x/document-file-icon-for-office-administration-and-paperwork-management-vector.jpg"]
-  },
+  announcement_files: [
+    {
+      url: String,
+      public_id: String,
+      file_type: {
+        type: String,
+        enum: ["image", "pdf"],
+      },
+    },
+  ],
+
+
   message: {
     type: String,
     required: true

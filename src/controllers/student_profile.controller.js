@@ -127,6 +127,8 @@ export const createUserStudent = async (req, res) => {
       permanent_address: permanent_address.trim(),
       guardian_name: guardian_name?.trim(),
       guardian_contact,
+      verification_status: "VERIFIED",
+      allotment_status: "ALLOTTED",
       branch: branch.trim(),
     }], { session });
 
@@ -648,6 +650,50 @@ export const deleteStudentProfile = async (req, res) => {
     });
   } finally {
     (await session).endSession();
+  }
+};
+
+
+export const uploadStudentProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded",
+      });
+    }
+    logger.info(req.studentId)
+    const student = await Student.findOne({ user_id: req.params.id });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+    if (req.user.role !== "admin" && req.studentId.toString() !== student._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can upload only your own profile photo",
+      });
+    }
+    student.profile_photo = {
+      url: req.file.path,
+      public_id: req.file.filename,
+    };
+
+    await student.save();
+    logger.info("student Aftre upload ", student)
+    return res.status(200).json({
+      success: true,
+      message: "Profile photo uploaded successfully",
+      profile_photo: student.profile_photo,
+    });
+  } catch (error) {
+    logger.error("UPLOAD STUDENT PROFILE PHOTO", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload profile photo",
+    });
   }
 };
 

@@ -1,14 +1,16 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { userRoutes, studentRoutes, announcementRoutes, leaveRequestRoutes, paymentRoutes, issueCommentRoutes, issueRoutes, disciplinaryCaseRoutes, allotmentRoutes } from "./routes/index.js"
+process.env.DOTENV_CONFIG_QUIET = "true";
+import "dotenv/config";
+import { userRoutes, studentRoutes, announcementRoutes, leaveRequestRoutes, paymentRoutes, issueCommentRoutes, issueRoutes, disciplinaryCaseRoutes, allotmentRoutes, testRoutes } from "./routes/index.js"
+
 import { login, logout } from "./controllers/user.controller.js";
 import { auth } from "./middlewares/auth.js";
 import { getAllAnnouncements } from "./controllers/annoucement.controller.js";
 import hostelRoutes from "./routes/hostel.routes.js"
 import roomRoutes from "./routes/room.routes.js"
-process.env.DOTENV_CONFIG_QUIET = "true";
-import "dotenv/config";
+
 
 const app = express();
 
@@ -58,6 +60,7 @@ app.use("/api/v1/issue-comments", issueCommentRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/disciplinary-cases", disciplinaryCaseRoutes);
 app.use("/api/v1/allotment", allotmentRoutes)
+app.use("/api/v1/test", testRoutes);
 // Health check endpoint
 app.get("/api/v1/health", (_req, res) => {
   res.status(200).json({
