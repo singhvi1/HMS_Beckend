@@ -2,6 +2,9 @@ import { Router } from "express";
 import { getAllotmentQuickInfo, getMyAllotmentStatus, getPhaseARooms, getRoomById, getVerificationRequests, phaseARegisterStudent, phaseBRegisterStudent, verifyStudentAndAllocate, toggleAllotment, getAllotmentStatus, adjustRoomCapacity } from "../controllers/allotment.controllers.js";
 import { authorizeRoles } from "../middlewares/role.auth.js";
 import { auth } from "../middlewares/auth.js"
+import { validateStudentUniqueness } from "../middlewares/validateUniq.js";
+import { requirePhase } from "../middlewares/allotmentPhase.auth.js";
+import { studentMulter } from "../middlewares/multer.middleware.js";
 
 
 const router = Router();
@@ -16,8 +19,8 @@ router.get('/status', getAllotmentStatus);
 router.get('/verification-requests', auth, authorizeRoles("admin"), getVerificationRequests)
 
 
-router.post("/phase-a/register", phaseARegisterStudent)
-router.post("/phase-b/register", phaseBRegisterStudent)
+router.post("/phase-a/register", studentMulter, requirePhase("PHASE_A"), validateStudentUniqueness, phaseARegisterStudent)
+router.post("/phase-b/register", studentMulter, requirePhase("PHASE_B"), validateStudentUniqueness, phaseBRegisterStudent)
 
 
 router.patch("/capacity", auth, authorizeRoles("admin"), adjustRoomCapacity);

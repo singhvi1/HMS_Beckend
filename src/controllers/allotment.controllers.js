@@ -6,6 +6,8 @@ import logger from "../utils/logger.js";
 import Hostel from "../models/hostel.model.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+import { validateRoomInput, validateStudentCreate, validateVerificationIds } from "../utils/helperFunctions.js";
+import { handleProfilePhotoOnVerification } from "../utils/services/studentVerification.services.js";
 
 export const toggleAllotment = async (req, res) => {
 
@@ -380,90 +382,22 @@ export const getVerificationRequests = async (req, res) => {
   }
 };
 
-
+//rem to add middleware for hostel allotment phase and validateStudentUniqueness check
 export const phaseARegisterStudent = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const {
-      full_name, email, phone, password,
-      sid, branch, permanent_address, guardian_name, guardian_contact,
-      room_id, room_number, block
-    } = req.body
-    //check whether allocation phase On :
-    const hostel = await Hostel.findOne({ is_active: true }).session(session);
-    if (!hostel) {
-      throw new Error("No hostel found");
-    }
-    if (hostel.allotment_status !== "PHASE_A") {
-      throw new Error("Phase-A registration is closed");
-    }
-    //validat all incoming data ;
-    //check existing user student ;
 
-    if (!full_name || !email || !phone || !password || !sid || !guardian_contact || !permanent_address) {
-      throw new Error("Missing required fields");
-    }
+    const { full_name, email, phone, password, sid, permanent_address, guardian_name, guardian_contact, branch } = validateStudentCreate(req.body);
+    logger.info("Phase-A Student Data validated successfully", email);
+    const { room_number, block, room_id } = validateRoomInput(req.body)
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedSid = sid.trim();
-    const normalizedBlock = block?.toLowerCase().trim();
-    const normalizedRoomNumber = room_number?.toString().trim();
-
-    const hasRoomId = Boolean(room_id);
-    const hasRoomNumberAndBlock = Boolean(normalizedRoomNumber && normalizedBlock);
-    if (hasRoomId && hasRoomNumberAndBlock) {
-      throw new Error("Provide either room_id OR room_number with block, not both");
-    }
-
-    if (!hasRoomId && !hasRoomNumberAndBlock) {
-      throw new Error("Room information is required");
-    }
-
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(normalizedEmail)) {
-      throw new Error("check your email please xyz@gmail.com")
-    }
-
-    if (normalizedSid.length !== 8 || !/^\d+$/.test(normalizedSid)) {
-      throw new Error("Sid length must be 8 digit 22104109 ")
-    }
-
-    if (String(guardian_contact).length !== 10 ||
-      !/^\d+$/.test(String(guardian_contact))) {
-      throw new Error("Guardian Mobile number must be exactly 10 digit")
-    }
-
-    if (String(phone).length !== 10 || !/^\d+$/.test(String(phone))) {
-      throw new Error("Phone number must be  equal to 10 digits")
-    }
-
-    if (password.length < 6) {
-      throw new Error("Password must be at least 6 characters long")
-    }
-
-
-    const existingUser = await User.findOne({ email: normalizedEmail }).session(session);
-    if (existingUser) {
-      throw new Error("User with this email already exists")
-    }
-    const existingStudent = await Student.findOne({ sid: normalizedSid }).session(session);
-    if (existingStudent) {
-      throw new Error("Student with this SID already exists");
-    }
-
-
-
+    const verificationIds = validateVerificationIds(req.body.verificationIds);
     //create user 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [user] = await User.create([{
-      full_name,
-      email: normalizedEmail,
-      phone,
-      password: hashedPassword,
-      role: "student",
-      status: "active",
+      full_name, email, phone, password: hashedPassword,
+      role: "student", status: "active",
     }], { session })
 
     //create student
@@ -471,12 +405,12 @@ export const phaseARegisterStudent = async (req, res) => {
     //room -> aviable -> student :allotment_status:alloted,veri:pending
     //for verification: roomrequest crate 
 
+
     let room;
-    if (hasRoomNumberAndBlock) {
+    if (room_id) {
       room = await Room.findOneAndUpdate(
         {
-          room_number: normalizedRoomNumber,
-          block: normalizedBlock,
+          _id: room_id,
           is_active: true,
           allocation_status: "AVAILABLE",
           $expr: { $lt: ["$occupied_count", "$capacity"] }
@@ -488,7 +422,8 @@ export const phaseARegisterStudent = async (req, res) => {
     } else {
       room = await Room.findOneAndUpdate(
         {
-          _id: room_id,
+          block: block,
+          room_number: room_number,
           is_active: true,
           allocation_status: "AVAILABLE",
           $expr: { $lt: ["$occupied_count", "$capacity"] }
@@ -501,14 +436,25 @@ export const phaseARegisterStudent = async (req, res) => {
       throw new Error("Room not found or Not available ")
     }
 
+    logger.info(req.file, "this is file ")
+    console.log(req.file, "this is file ")
+    const uploadedFile = req.file
+      ? {
+        url: req.file.path,
+        public_id: req.file.filename,
+      }
+      : null;
+
     const [student] = await Student.create([{
       user_id: user._id,
-      sid: normalizedSid,
+      sid: sid,
       branch, permanent_address, guardian_contact, guardian_name,
       room_id: room._id,
       allotment_phase: "A",
       allotment_status: "TEMP_LOCKED",
       verification_status: "PENDING",
+      verificationIds: verificationIds,
+      profile_photo: uploadedFile,
     }], { session })
 
 
@@ -528,7 +474,7 @@ export const phaseARegisterStudent = async (req, res) => {
       .lean();
 
     const accessToken = user.generateAccessToken();
-    // console.log("hitted")
+
     return res
       .cookie("accessToken", accessToken, {
         httpOnly: true,
@@ -550,10 +496,13 @@ export const phaseARegisterStudent = async (req, res) => {
       message: error.message,
       stack: error.stack,
     });
-
+    deleteMulter(req.file?.filename, "image").catch((err) => {
+      logger.error("Failed to delete uploaded file after user creation error", err);
+    });
     return res.status(400).json({
       success: false,
-      message: "failed to createUserStudent PhaseA: " + error.message || "Failed to create New User with student for allotment"
+      message: error.message || "Failed to create Phase-A registration"
+
     });
   } finally {
     session.endSession();
@@ -564,85 +513,43 @@ export const phaseBRegisterStudent = async (req, res) => {
   try {
     session.startTransaction();
 
+    //validate all data  -> sid trim emai
 
-    const {
-      full_name, email, phone, password,
-      sid, branch, permanent_address, guardian_name, guardian_contact,
-    } = req.body
-
-    const hostel = await Hostel.findOne({ is_active: true }).session(session);
-    if (!hostel) throw new Error("No hostel found");
-
-    if (hostel.allotment_status !== "PHASE_B") {
-      throw new Error("Phase-B registration is closed");
-    }
-
-    //validate all data  -> sid trim email 
-    if (!full_name || !email || !password || !sid || !phone || !guardian_contact) {
-      throw new Error("Missing required fields");
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedSid = sid.trim();
-    const normalizedPhone = String(phone).trim();
-    const normalizedGuardianContact = String(guardian_contact).trim();
-
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(normalizedEmail)) {
-      throw new Error("Invalid email address");
-    }
-
-    if (normalizedSid.length !== 8 || !/^\d+$/.test(normalizedSid)) {
-      throw new Error("Student ID must be exactly 8 digits");
-    }
-
-    if (normalizedPhone.length !== 10 || !/^\d+$/.test(normalizedPhone)) {
-      throw new Error("Phone number must be exactly 10 digits");
-    }
-
-    if (normalizedGuardianContact.length !== 10 || !/^\d+$/.test(normalizedGuardianContact)) {
-      throw new Error("Guardian contact must be exactly 10 digits");
-    }
-
-
-    if (password.length < 6) {
-      throw new Error("Password must be at least 6 characters long")
-    }
-
-    //check user already exist s or not 
-    const existingUser = await User.findOne({ email: normalizedEmail }).session(session);
-    if (existingUser) {
-      throw new Error("User with this email already exists")
-    }
-    const existingStudent = await Student.findOne({ sid: normalizedSid }).session(session);
-    if (existingStudent) {
-      throw new Error("Student with this SID already exists");
-    }
-
+    const { full_name, email, phone, password, sid, permanent_address, guardian_name, guardian_contact, branch } = validateStudentCreate(req.body);
+    const verificationIds = validateVerificationIds(req.body.verificationIds);
 
 
     //create user 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [user] = await User.create([{
       full_name,
-      email: normalizedEmail,
+      email: email,
       phone,
       password: hashedPassword,
       role: "student",
       status: "active",
     }], { session })
 
+    const uploadedFile = req.file
+      ? {
+        url: req.file.path,
+        public_id: req.file.filename,
+      }
+      : null;
+
+
     const [student] = await Student.create([{
       user_id: user._id,
-      sid: normalizedSid,
+      sid: sid,
       permanent_address,
       guardian_name,
       guardian_contact,
       branch,
       allotment_phase: "B",
       allotment_status: "PENDING",
-      verification_status: "PENDING"
+      verification_status: "PENDING",
+      verificationIds: verificationIds,
+      profile_photo: uploadedFile,
     }], { session });
 
     //crate room request : 
@@ -670,7 +577,6 @@ export const phaseBRegisterStudent = async (req, res) => {
         message: "Registration successfull Room will be alloted Soon",
         data: {
           populatedStudent,
-          accessToken,
         }
       })
 
@@ -680,7 +586,9 @@ export const phaseBRegisterStudent = async (req, res) => {
       message: error.message,
       stack: error.stack,
     });
-
+    deleteMulter(req.file?.filename, "image").catch((err) => {
+      logger.error("Failed to delete uploaded file after user creation error", err);
+    });
     return res.status(400).json({
       success: false,
       message: "failed to createUserStudent Phase B: " + error.message || "Failed to create New User with student for allotment"
@@ -689,7 +597,6 @@ export const phaseBRegisterStudent = async (req, res) => {
     session.endSession();
   }
 }
-
 
 export const adjustRoomCapacity = async (req, res) => {
   const action = Number(req.body.action);
@@ -917,6 +824,8 @@ export const verifyStudentAndAllocate = async (req, res) => {
     responseData.allotment_status = student.allotment_status;
     responseData.verification_status = student.verification_status;
 
+
+    await handleProfilePhotoOnVerification({ student, status });
     await student.save({ session });
     await roomRequest.save({ session });
     await session.commitTransaction();

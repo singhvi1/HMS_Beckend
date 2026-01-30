@@ -10,85 +10,38 @@ import IssueComment from "../models/issue_comment.model.js";
 import LeaveRequest from "../models/leave_request.model.js";
 import puppeteer from "puppeteer";
 import { studentProfileHTML } from "../utils/templates.js";
+import { deleteMulter } from "../middlewares/multer.middleware.js";
+import { validateRoomInput, validateStudentCreate, validateVerificationIds } from "../utils/helperFunctions.js";
 
+
+//new or old room with new student
 export const createUserStudent = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
 
-    const {
-      full_name,
-      email, phone,
-      password,
-      role = "student",
-      sid,
-      permanent_address,
-      guardian_name,
-      guardian_contact,
-      branch,
-      room_number,
-      block,
-      roomId = null,
-    } = req.body;
     //TODO : romove room_number and block after aggregation pipeline
     if (req.user.role !== "admin") {
       throw new Error("Admin role required");
     }
 
-    if (!full_name || !email || !phone || !password || !sid || !permanent_address || !guardian_name || !guardian_contact || !branch || (!roomId && (!room_number || !block))) {
-      throw new Error("Missing required fields");
-    }
+    const { full_name, email, phone, password, sid, permanent_address, guardian_name, guardian_contact, branch } = validateStudentCreate(req.body);
 
-    //validate all data  -> sid trim email 
+    const { room_number, block, roomId, capacity } = validateRoomInput(req.body)
+    
+    const verificationIds = validateVerificationIds(req.body.verificationIds);
 
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedSid = sid.trim();
-
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(normalizedEmail)) {
-      throw new Error("check your email please xyz@gmail.com")
-    }
-
-    if (normalizedSid.length !== 8 || !/^\d+$/.test(normalizedSid)) {
-      throw new Error("Sid length must be 8 digit 22104109 ")
-    }
-
-    if (String(guardian_contact).length !== 10 ||
-      !/^\d+$/.test(String(guardian_contact))) {
-      throw new Error("Guardian Mobile number must be exactly 10 digit")
-    }
-
-    if (String(phone).length !== 10 || !/^\d+$/.test(String(phone))) {
-      throw new Error("Phone number must be  equal to 10 digits")
-    }
-
-    if (password.length < 6) {
-      throw new Error("Password must be at least 6 characters long")
-    }
-
-    //check user already exist s or not 
-    const existingUser = await User.findOne({ email: normalizedEmail }, { phone }, null, { session });
-    if (existingUser) {
-      throw new Error("User with this email already exists")
-    }
-    const existingStudent = await Student.findOne({ sid: normalizedSid }).session(session);//both are correct prefer this
-    if (existingStudent) {
-      throw new Error("Student with this SID already exists");
-    }
-
+    
     //? why did we use NUll :-> findOne(( filter, projection(full_name:1 info we want), options(session lean) ))
     //NOTE : User.create([{ ... }], { session }) rule:
     //[user] : mean take the first arr[0] => user =arr[0];
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [user] = await User.create([{
-      full_name: full_name.trim(),
-      email: email.toLowerCase().trim(),
+      full_name: full_name,
+      email: email,
       phone,
       password: hashedPassword,
-      role: role,
     }], { session });
 
 
@@ -111,25 +64,35 @@ export const createUserStudent = async (req, res) => {
 
       const [newRoom] = await Room.create(
         [{
-          block: block.toLowerCase(),
+          block: block,
           room_number,
-          capacity: req.body.capacity ?? 1
+          capacity: capacity ?? 1
         }],
         { session }
       );
       room = newRoom;
     }
 
+
+    const uploadedFile = req.file
+      ? {
+        url: req.file.path,
+        public_id: req.file.filename,
+      }
+      : null;
+
     const [student] = await Student.create([{
       user_id: user._id,
       room_id: room._id,
       sid,
-      permanent_address: permanent_address.trim(),
-      guardian_name: guardian_name?.trim(),
+      permanent_address: permanent_address,
+      guardian_name: guardian_name,
       guardian_contact,
       verification_status: "VERIFIED",
       allotment_status: "ALLOTTED",
-      branch: branch.trim(),
+      branch: branch,
+      profile_photo: uploadedFile,
+      verificationIds: verificationIds,
     }], { session });
 
     await session.commitTransaction();
@@ -154,7 +117,11 @@ export const createUserStudent = async (req, res) => {
         message: `User with this ${field} already exists`
       });
     }
-
+    // test this too
+    // console.log(req.file ?? "not foudnd")
+    deleteMulter(req.file?.filename, "image").catch((err) => {
+      logger.error("Failed to delete uploaded file after user creation error", err);
+    });
     logger.error("Failed to add user", error);
     return res.status(500).json({
       success: false,
@@ -165,6 +132,8 @@ export const createUserStudent = async (req, res) => {
   }
 
 }
+
+// New student with existing  room  and user not used anywhere else
 export const createStudentProfile = async (req, res) => {
   try {
     const {
@@ -180,7 +149,7 @@ export const createStudentProfile = async (req, res) => {
     } = req.body;
 
 
-    if (!sid || !permanent_address || !guardian_contact || !branch || !room_number || !block || !room_id) {
+    if (!sid || !permanent_address || !guardian_contact || !branch || !room_id) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided"
@@ -293,6 +262,8 @@ export const getStudentProfile = async (req, res) => {
     });
   }
 };
+
+
 //NOTE this is not optimised i need to learn aggregate Pipeline;
 export const getAllStudents = async (req, res) => {
   try {
@@ -609,14 +580,19 @@ export const deleteStudentProfile = async (req, res) => {
     session.startTransaction();;
 
     const { user_id } = req.params;
-    const student = await Student.findOneAndDelete({ user_id }).session(session);
+    const student = await Student.findOne({ user_id }).session(session);
 
     if (!student) {
       throw new Error("No such student found")
     }
+    const profilePublicId = student.profile_photo?.public_id || null;
+
     if (student.room_id) {
       await Room.findOneAndUpdate(
-        { _id: student.room_id },
+        {
+          _id: student.room_id,
+          occupied_count: { $gt: 0 }
+        },
         { $inc: { occupied_count: -1 } },
         { session }
       );
@@ -628,13 +604,17 @@ export const deleteStudentProfile = async (req, res) => {
       RoomRequest.deleteMany({ student_id: student._id }).session(session),
       Issue.deleteMany({ raised_by: student._id }).session(session),
       LeaveRequest.deleteMany({ student_id: student._id }).session(session),
-      IssueComment.deleteMany({ issue_id: student._id }).session(session),
+      IssueComment.deleteMany({ commented_by: student.user_id }).session(session),
       Student.deleteOne({ _id: student._id }).session(session),
       User.deleteOne({ _id: student.user_id }).session(session),
     ]);
     await session.commitTransaction();
 
-
+    if (profilePublicId) {
+      deleteMulter(profilePublicId, "image").catch((err) => {
+        logger.error("Failed to delete profile photo after student deletion", err);
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -649,7 +629,7 @@ export const deleteStudentProfile = async (req, res) => {
       message: "Failed to delete student profile"
     });
   } finally {
-    (await session).endSession();
+    session.endSession();
   }
 };
 

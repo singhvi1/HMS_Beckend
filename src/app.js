@@ -10,6 +10,8 @@ import { auth } from "./middlewares/auth.js";
 import { getAllAnnouncements } from "./controllers/annoucement.controller.js";
 import hostelRoutes from "./routes/hostel.routes.js"
 import roomRoutes from "./routes/room.routes.js"
+import { deleteMulter } from "./middlewares/multer.middleware.js";
+import logger from "./utils/logger.js";
 
 
 const app = express();
@@ -72,11 +74,20 @@ app.get("/api/v1/health", (_req, res) => {
 
 
 // Global error handler (must be last)
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   const statusCode = err.statusCode || 500;
+
+  if (req.uploadedFile?.public_id) {
+    deleteMulter(req.file?.filename, "image").catch((err) => {
+      logger.error("Failed to delete uploaded file after user creation error", err);
+    });
+    logger.info("Deleted uploaded file after user creation error", { filename: req.file?.filename });
+  }
+
   res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal Server Error"
+    source: err.source || "GLOBAL_ERROR_HANDLER",
+    message: err.message || "Internal Server  Error"
   });
 });
 

@@ -9,17 +9,20 @@ import logger from "../utils/logger.js";
  * @param {String} entityId    MongoDB _id
  * @param {String} fileName   profile | aadhaar | notice | image | pdf
  */
+
+
 export const cloudinaryUploader = (
-  { baseFolder, entityId, fileName, maxSizeMB = 3, resourceType = "auto", allowedFormats = [], }) => {
+  { baseFolder, entityId, fileName = null, maxSizeMB = 3, resourceType = "auto", allowedFormats = [], }) => {
 
 
   const storage = new CloudinaryStorage({
     cloudinary,
     params: async () => ({
       folder: `HMS/${baseFolder}/${entityId}`,
-      public_id: fileName,
+      public_id: fileName || undefined,
       resource_type: resourceType,
       allowed_formats: allowedFormats.length > 0 ? allowedFormats : ["jpg", "jpeg", "png", "webp"],
+      tags: ["temp", baseFolder],
     }),
   });
 
@@ -30,6 +33,8 @@ export const cloudinaryUploader = (
     },
   });
 };
+
+
 export const deleteMulter = async (public_id, resource_type = "image") => {
   if (!public_id) return;
 
@@ -40,39 +45,57 @@ export const deleteMulter = async (public_id, resource_type = "image") => {
   if (result.result !== "ok" && result.result !== "not found") {
     throw new Error(`Cloudinary delete failed: ${public_id}`);
   }
-
   return result;
 };
 
-
 export const studentMulter = (req, res, next) => {
-
+  logger.info("STUDENT MULTER MIDDLEWARE", req.file);
   const upload = cloudinaryUploader({
     baseFolder: "students",
-    entityId: req.params.id,
+    entityId: "Temp",
     fileName: "profile",
+    resourceType: "image",
+    allowedFormats: ["jpg", "jpeg", "png", "webp"],
+    maxSizeMB: 3,
   });
 
   upload.single("file")(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message });
+    if (err) {
+      logger.error("STUDENT MULTER ERROR", err.message);
+      err.statusCode = 400;
+      err.source = "STUDENT_MULTER";
+      return next(err);
+    }
+    if (req.file) {
+      req.uploadedFile = {
+        public_id: req.file.filename,
+        url: req.file.path,
+      };
+    }
+    logger.info("STUDENT MULTER FILE", req.file);
     next();
   });
-
 }
 export const announcementGalleryMulter = (req, res, next) => {
   logger.info("IMAGE MULTER MIDDLEWARE", req.body);
   const upload = cloudinaryUploader({
     baseFolder: "announcements",
-    entityId: req.params.id,
+    entityId: req.params.id ?? "unknown_id",
     resourceType: "image",
     allowedFormats: ["jpg", "jpeg", "png", "webp",],
     maxSizeMB: 10,
   });
 
   upload.array("files", 5)(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message });
+    if (err) {
+      logger.error("ANNOUNCEMENT GALLERY MULTER ERROR", err.message);
+      err.statusCode = 400;
+      err.source = "ANNOUNCEMENT_GALLERY";
+      return next(err);
+    }
     next();
   });
+
 };
 
 export const announcementPdfsMulter = (req, res, next) => {
@@ -87,13 +110,15 @@ export const announcementPdfsMulter = (req, res, next) => {
   });
   upload.array("files", 5)(req, res, (err) => {
     if (err) {
+      err.statusCode = 400;
+      err.source = "ANNOUNCEMENT_PDFS";
       const message =
         err.message.includes("Invalid image file") ||
           err.message.includes("Invalid format")
           ? "Only PDF files are allowed"
           : err.message;
       logger.error(message);
-      return res.status(400).json({ error: message || "not able to upload image" });
+      return next(err);
     }
 
     next();

@@ -2,12 +2,7 @@ import { Router } from "express";
 import { auth } from "../middlewares/auth.js";
 import { authorizeRoles } from "../middlewares/role.auth.js";
 import {
-  createAnnouncement,
-  getAllAnnouncements,
-  getAnnouncement,
-  updateAnnouncement,
-  deleteAnnouncement,
-  uploadAnnouncemnetFiles
+  createAnnouncement, getAllAnnouncements, getAnnouncement, updateAnnouncement, deleteAnnouncement, uploadAnnouncemnetFiles
 } from "../controllers/annoucement.controller.js";
 import { announcementGalleryMulter, announcementPdfsMulter } from "../middlewares/multer.middleware.js";
 

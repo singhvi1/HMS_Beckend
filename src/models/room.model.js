@@ -13,7 +13,8 @@ const roomSchema = new Schema(
             type: String,
             required: true,
             lowercase: true,
-            trim: true
+            trim: true,
+            maxlength: 2,
         },
 
         floor: {
@@ -22,10 +23,10 @@ const roomSchema = new Schema(
         },
         capacity: {
             type: Number,
-            required: true,
+            required: [true, "Room capacity is required"],
             min: 1,
             default: 1,
-            max: 3,
+            max: [3, "Room capacity cannot exceed 3"]
         },
 
 

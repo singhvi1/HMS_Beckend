@@ -1,10 +1,6 @@
-import mongoose from "mongoose";
 import { Schema, model } from "mongoose";
 import Room from "./room.model.js";
-import Issue from "./issue.model.js";
-import Leave from "./leave_request.model.js";
-import IssueComment from "./issue_comment.model.js";
-import User from "./user.model.js";
+import { PAYMENT_ID_TYPES, STUDENT_ID_TYPES } from "../utils/constants.js";
 
 
 const studentSchema = new Schema(
@@ -20,7 +16,7 @@ const studentSchema = new Schema(
       ref: "Room",
       default: null,
       index: true,
-      // required: true,
+      // required: true
     },
     sid: {
       type: String,
@@ -44,6 +40,47 @@ const studentSchema = new Schema(
       minLength: 10,
       maxLength: 10,
     },
+    verificationIds: {
+      studentId: {
+        idType: {
+          type: String,
+          enum: ["AADHAAR", "PAN", "PASSPORT", "VOTER_ID"],
+          required: true,
+        },
+        idValue: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+      },
+
+      guardianId: {
+        idType: {
+          type: String,
+          enum: STUDENT_ID_TYPES,
+          required: true,
+        },
+        idValue: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+      },
+
+      paymentId: {
+        idType: {
+          type: String,
+          enum: PAYMENT_ID_TYPES,
+          required: true,
+        },
+        idValue: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+      },
+    },
+
     profile_photo: {
       url: {
         type: String,
@@ -152,7 +189,6 @@ studentSchema.pre("findOneAndUpdate", async function () {
   if (!room) {
     throw new Error("Invalid room_id");
   }
-
   update.block = room.block;
   update.room_number = room.room_number;
 });

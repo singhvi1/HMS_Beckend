@@ -2,25 +2,16 @@ import { Router } from "express";
 import { auth } from "../middlewares/auth.js";
 import { authorizeRoles } from "../middlewares/role.auth.js";
 import {
-  createStudentProfile,
-  getStudentProfile,
-  getAllStudents,
-  updateStudentProfile,
-  deleteStudentProfile,
-  createUserStudent,
-  toggleStudentStatus,
-  downloadStudentDocument,
-  uploadStudentProfilePhoto,
-
+  createStudentProfile, getStudentProfile, getAllStudents, updateStudentProfile, deleteStudentProfile, createUserStudent, toggleStudentStatus, downloadStudentDocument, uploadStudentProfilePhoto,
 } from "../controllers/student_profile.controller.js";
 import { studentMulter } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-router.post("/", auth, authorizeRoles("admin", "staff"), createStudentProfile);
+router.post("/", auth, authorizeRoles("admin", "staff"), createStudentProfile);//future sutdent only 
 
-//create user + student with room 
-router.post("/create", auth, authorizeRoles("admin", "staff"), createUserStudent);
+//create user + student with old / new room   
+router.post("/create", auth, authorizeRoles("admin", "staff"), studentMulter, createUserStudent);
 
 router.post("/upload/profile/:id", auth,
   studentMulter, uploadStudentProfilePhoto
