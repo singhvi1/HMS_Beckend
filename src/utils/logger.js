@@ -14,6 +14,16 @@ const logger = {
   },
   warn: (message, data = {}) => {
     console.warn(`[WARN] ${message}`, Object.keys(data).length > 0 ? data : "");
+  },
+  time: (label) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.time(`[TIME] ${label}`);
+    }
+  },
+  timeEnd: (label) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.timeEnd(`[TIME] ${label}`);
+    }
   }
 };
 

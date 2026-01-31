@@ -28,10 +28,14 @@ export const createUserStudent = async (req, res) => {
     const { full_name, email, phone, password, sid, permanent_address, guardian_name, guardian_contact, branch } = validateStudentCreate(req.body);
 
     const { room_number, block, roomId, capacity } = validateRoomInput(req.body)
-    
-    const verificationIds = validateVerificationIds(req.body.verificationIds);
+    let { verificationIds } = req.body;
 
-    
+    if (typeof verificationIds === "string") {
+      verificationIds = JSON.parse(verificationIds);
+    }
+    verificationIds = validateVerificationIds(verificationIds);
+
+
     //? why did we use NUll :-> findOne(( filter, projection(full_name:1 info we want), options(session lean) ))
     //NOTE : User.create([{ ... }], { session }) rule:
     //[user] : mean take the first arr[0] => user =arr[0];
@@ -101,7 +105,7 @@ export const createUserStudent = async (req, res) => {
       { path: "user_id", select: "full_name email phone role status" },
       { path: "room_id", select: "block room_number capacity " }
     ]);
-
+    logger.info("Student created successfully", { student: student });
     return res.status(201).json({
       success: true,
       data: { user, student },
@@ -342,19 +346,22 @@ export const getAllStudents = async (req, res) => {
   }
 };
 
-// Update student profile by student(some) and admin(all);
+// Update student profile by student(some) and admin(all expect user);
 export const updateStudentProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const { guardian_contact, } = req.body;
 
 
+    if (typeof req.body.verificationIds === "string") {
+      req.body.verificationIds = JSON.parse(req.body.verificationIds);
+    }
+    req.body.verificationIds = validateVerificationIds(req.body.verificationIds || {});
     const student = await Student.findOne({ user_id });
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found"
-      });
+      const err = new Error("Student not found");
+      err.statusCode = 404;
+      err.source = "UPDATE_STUDENT_PROFILE";
+      throw err;
     }
 
 
@@ -363,58 +370,55 @@ export const updateStudentProfile = async (req, res) => {
 
     //means if login student doest not match with /:user_id
     if (!isAdminRoute && req.user._id.toString() != user_id) {
-      return res.status(403).json({
-        success: false,
-        message: "You can update only your own profile"
-      });
+      const err = new Error("You can update only your own profile");
+      err.statusCode = 403;
+      err.source = "UPDATE_STUDENT_PROFILE";
+      throw err;
     }
 
     if (isAdminRoute && !isAdminUser) {
-      return res.status(403).json({
-        success: false,
-        message: "Admin privileges required"
-      });
+      const err = new Error("isAdmin role required to update other student's profile");
+      err.statusCode = 403;
+      err.source = "UPDATE_STUDENT_PROFILE";
+      throw err;
     }
 
 
     let newRoomId = null;
-    if (isAdminRoute && req.body?.block && req.body?.room_number) {
-      const room = await Room.findOne({
-        block: req.body.block.toLowerCase(),
-        room_number: req.body.room_number
-      });
-      if (!room) {
-        return res.status(404).json({
-          success: false,
-          message: "Room Not Avialable"
-        })
-      }
+    if (req.body.room_number && req.body.room_number.trim() !== student.room_number) {
+      if (isAdminRoute && req.body?.block && req.body?.room_number) {
+        const room = await Room.findOne({
+          is_active: true,
+          block: req.body.block.toLowerCase(),
+          room_number: req.body.room_number,
+          allocation_status: { $in: ["AVAILABLE", "VACANT_UPGRADE"] }
+        });
+        logger.info("ROOM FOUND FOR STUDENT ROOM CHANGE", { room: room });
+        if (!room) {
+          const err = new Error("Room Not Available");
+          err.statusCode = 404;
+          err.source = "UPDATE_STUDENT_PROFILE";
+          throw err;
+        }
 
-      const occupantsCount = await Student.countDocuments({
-        room_id: room._id,
-        _id: { $ne: student._id }
-      });
-      if (occupantsCount >= room.capacity) {
-        return res.status(400).json({
-          success: false,
-          message: "Room Fulled or not aviable"
-        })
+        if (room.occupied_count >= room.capacity) {
+          const err = new Error("Room Full or not available");
+          err.statusCode = 400;
+          err.source = "UPDATE_STUDENT_PROFILE";
+          throw err;
+        }
+        newRoomId = room._id;
+      } else {
+        const err = new Error("Block and Room Number required to change room");
+        err.statusCode = 400;
+        err.source = "UPDATE_STUDENT_PROFILE";
+        throw err;
       }
-      newRoomId = room._id;
     }
 
-
     const allowedFields = isAdminRoute
-      ? [
-        "permanent_address",
-        "guardian_name",
-        "guardian_contact",
-        "branch",
-      ]
-      : [
-        "permanent_address",
-        "guardian_name",
-      ];
+      ? ["permanent_address", "guardian_name", "guardian_contact", "branch", "sid", "verificationIds",]
+      : ["permanent_address", "guardian_name",];
 
     const hasRealChange = allowedFields.some(field => {
       if (req.body[field] === undefined) return false;
@@ -424,38 +428,38 @@ export const updateStudentProfile = async (req, res) => {
           : req.body[field];
       return newValue != student[field];
     });
+
     const hasRoomChange = newRoomId && newRoomId.toString() !== student.room_id?.toString();
+    const hasFileChange = Boolean(req.file);
 
-    if (!hasRealChange && !hasRoomChange) {
-      return res.status(400).json({
-        success: false,
-        message: "No changes detected"
-      });
+    if (!hasRealChange && !hasRoomChange && !hasFileChange) {
+      const err = new Error("No changes detected");
+      err.statusCode = 400;
+      err.source = "UPDATE_STUDENT_PROFILE";
+      throw err;
     }
 
-
-    // Validate guardian contact if provided
-    if (isAdminRoute && guardian_contact !== undefined && (guardian_contact.toString().length !== 10 ||
-      !/^\d+$/.test(guardian_contact.toString()))) {
-
-      return res.status(400).json({
-        success: false,
-        message: "Guardian contact must be 10 digits"
-      });
-    }
-
+    //aplly changes
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         student[field] =
           typeof req.body[field] === "string"
-            ? req.body[field].trim()
+            ? req.body[field]?.trim()
             : req.body[field];
       }
     }
     if (newRoomId) {
       student.room_id = newRoomId;
     }
+    if (req.uploadedFile) {
+      // if (student.profile_photo?.public_id) {
+      //   deleteMulter(student.profile_photo.public_id, "image").catch((err) => {
+      //     logger.error("Failed to delete old profile photo during update", err);
+      //   });
+      // }
+      student.profile_photo = req.uploadedFile
 
+    }
     await student.save();
     await student.populate([
       { path: "user_id", select: "full_name email phone role status" },
@@ -470,6 +474,7 @@ export const updateStudentProfile = async (req, res) => {
 
   } catch (error) {
     logger.error("UPDATE STUDENT PROFILE", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to update student profile"
@@ -636,33 +641,28 @@ export const deleteStudentProfile = async (req, res) => {
 
 export const uploadStudentProfilePhoto = async (req, res) => {
   try {
-    if (!req.file) {
+    logger.time("UPLOAD STUDENT PROFILE PHOTO");
+    if (!req.uploadedFile) {
       return res.status(400).json({
         success: false,
         message: "No file uploaded",
       });
     }
     logger.info(req.studentId)
-    const student = await Student.findOne({ user_id: req.params.id });
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-    if (req.user.role !== "admin" && req.studentId.toString() !== student._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You can upload only your own profile photo",
-      });
-    }
-    student.profile_photo = {
-      url: req.file.path,
-      public_id: req.file.filename,
-    };
+    const student = await Student.findOneAndUpdate(
+      { user_id: req.params.userId },
+      {
+        profile_photo: req.uploadedFile,
+      },
+      { new: true }
+    );
 
-    await student.save();
+
+
+
     logger.info("student Aftre upload ", student)
+
+    logger.timeEnd("UPLOAD STUDENT PROFILE PHOTO");
     return res.status(200).json({
       success: true,
       message: "Profile photo uploaded successfully",

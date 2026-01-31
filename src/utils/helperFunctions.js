@@ -1,4 +1,4 @@
-import { STUDENT_ID_TYPES, PAYMENT_ID_TYPES, } from "./constants.js";
+import { VERIFICATION_ID_TYPES, PAYMENT_ID_TYPES, } from "./constants.js";
 import logger from "./logger.js";
 
 
@@ -121,7 +121,9 @@ export const validateStudentCreate = (data = {}) => ({
 
 
 export const validateVerificationIds = (verificationIds = {}) => {
+
     if (!verificationIds || typeof verificationIds !== "object") {
+        logger.info(verificationIds);
         throw new Error("Verification IDs are required");
     }
 
@@ -150,12 +152,12 @@ export const validateVerificationIds = (verificationIds = {}) => {
         studentId: validate(
             verificationIds.studentId,
             "Student",
-            STUDENT_ID_TYPES
+            VERIFICATION_ID_TYPES
         ),
         guardianId: validate(
             verificationIds.guardianId,
             "Guardian",
-            STUDENT_ID_TYPES
+            VERIFICATION_ID_TYPES
         ),
         paymentId: validate(
             verificationIds.paymentId,

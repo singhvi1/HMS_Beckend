@@ -13,14 +13,14 @@ router.post("/", auth, authorizeRoles("admin", "staff"), createStudentProfile);/
 //create user + student with old / new room   
 router.post("/create", auth, authorizeRoles("admin", "staff"), studentMulter, createUserStudent);
 
-router.post("/upload/profile/:id", auth,
+router.post("/upload/profile/:userId", auth,
   studentMulter, uploadStudentProfilePhoto
 );
 
 
-router.patch("/:user_id", auth, updateStudentProfile);
+router.patch("/:user_id", auth, studentMulter, updateStudentProfile);
 
-router.patch("/edit/:user_id", auth, authorizeRoles("admin", "staff"), updateStudentProfile,);
+router.patch("/edit/:user_id", auth, authorizeRoles("admin", "staff"), studentMulter, updateStudentProfile,);
 
 router.patch("/status/:user_id", auth, authorizeRoles("admin", "staff"), toggleStudentStatus);
 

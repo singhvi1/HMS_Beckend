@@ -688,7 +688,7 @@ export const adjustRoomCapacity = async (req, res) => {
 export const verifyStudentAndAllocate = async (req, res) => {
   const { studentUserId } = req.params;
   const { status } = req.body;
-
+  logger.time("verifyStudent");
   if (!["VERIFIED", "REJECTED"].includes(status)) {
     return res.status(400).json({
       message: "Status must be verfied or rejected"
@@ -829,11 +829,13 @@ export const verifyStudentAndAllocate = async (req, res) => {
     await student.save({ session });
     await roomRequest.save({ session });
     await session.commitTransaction();
+    logger.timeEnd("verifyStudent");
 
     return res.status(200).json({
       message: `student ${student.sid} status updated to ${status.toLowerCase()} successfully`,
       data: responseData,
     })
+
   } catch (error) {
     await session.abortTransaction()
     logger.error("verifyStudent Failed: not able to verify student", {

@@ -1,4 +1,4 @@
-export const STUDENT_ID_TYPES = [
+export const VERIFICATION_ID_TYPES = [
     "AADHAAR",
     "PAN",
     "PASSPORT",

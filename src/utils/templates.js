@@ -2,9 +2,9 @@ export const studentProfileHTML = (student) => {
   // Logic for occupancy type
   const occupancyType =
     student.room_id?.occupied_count === 1 ? "Single"
-    : student.room_id?.occupied_count === 2 ? "Double"
-    : student.room_id?.occupied_count === 3 ? "Triple"
-    : "Not Assigned";
+      : student.room_id?.occupied_count === 2 ? "Double"
+        : student.room_id?.occupied_count === 3 ? "Triple"
+          : "Not Assigned";
 
   // Date formatting helper
   const formatDate = (dateString) => {
@@ -15,7 +15,7 @@ export const studentProfileHTML = (student) => {
   };
 
   // Image Logic: Use student image or a default placeholder
-  const studentPhoto = student.ImageUrl || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+  const studentPhoto = student?.profile_photo || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
 
   return `
 <!DOCTYPE html>

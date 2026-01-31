@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 import Room from "./room.model.js";
-import { PAYMENT_ID_TYPES, STUDENT_ID_TYPES } from "../utils/constants.js";
+import { PAYMENT_ID_TYPES, VERIFICATION_ID_TYPES } from "../utils/constants.js";
 
 
 const studentSchema = new Schema(
@@ -44,7 +44,7 @@ const studentSchema = new Schema(
       studentId: {
         idType: {
           type: String,
-          enum: ["AADHAAR", "PAN", "PASSPORT", "VOTER_ID"],
+          enum: VERIFICATION_ID_TYPES,
           required: true,
         },
         idValue: {
@@ -57,7 +57,7 @@ const studentSchema = new Schema(
       guardianId: {
         idType: {
           type: String,
-          enum: STUDENT_ID_TYPES,
+          enum: VERIFICATION_ID_TYPES,
           required: true,
         },
         idValue: {

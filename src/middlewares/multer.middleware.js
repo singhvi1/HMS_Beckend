@@ -49,11 +49,19 @@ export const deleteMulter = async (public_id, resource_type = "image") => {
 };
 
 export const studentMulter = (req, res, next) => {
+
+  const contentType = req.headers['content-type'] || '';
+
+  if (!contentType.includes('multipart/form-data')) {
+    logger.info("Skipping Student Multer: No multipart data found");
+    return next();
+  }
   logger.info("STUDENT MULTER MIDDLEWARE", req.file);
+
   const upload = cloudinaryUploader({
     baseFolder: "students",
     entityId: "Temp",
-    fileName: "profile",
+    fileName: `profile_${new Date().toLocaleDateString('en-IN').replaceAll('/', '-')}`,
     resourceType: "image",
     allowedFormats: ["jpg", "jpeg", "png", "webp"],
     maxSizeMB: 3,
@@ -72,7 +80,7 @@ export const studentMulter = (req, res, next) => {
         url: req.file.path,
       };
     }
-    logger.info("STUDENT MULTER FILE", req.file);
+    logger.info("STUDENT MULTER FILE", req.uploadedFile);
     next();
   });
 }
