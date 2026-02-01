@@ -3,6 +3,7 @@ import dbConnect from "./config/dbConnect.js";
 import logger from "./utils/logger.js";
 
 const PORT = process.env.PORT || 8000;
+console.log("NODE_ENV =", process.env.NODE_ENV);
 
 dbConnect()
   .then(() => {
