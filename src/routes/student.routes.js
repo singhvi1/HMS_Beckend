@@ -3,6 +3,9 @@ import { auth } from "../middlewares/auth.js";
 import { authorizeRoles } from "../middlewares/role.auth.js";
 import {
   createStudentProfile, getStudentProfile, getAllStudents, updateStudentProfile, deleteStudentProfile, createUserStudent, toggleStudentStatus, downloadStudentDocument, uploadStudentProfilePhoto,
+  exportAccountantExcel,
+  exportStudentWiseExcel,
+  exportRoomWiseExcel,
 } from "../controllers/student_profile.controller.js";
 import { studentMulter } from "../middlewares/multer.middleware.js";
 
@@ -38,6 +41,11 @@ router.get("/profile/:id", auth, authorizeRoles("admin", "staff"), getStudentPro
 
 router.get("/document/:user_id", auth, downloadStudentDocument);
 
+router.get("/export/accountant", auth, authorizeRoles("admin", "staff"), exportAccountantExcel);
+
+router.get("/export/studentwise", auth, authorizeRoles("admin", "staff"), exportStudentWiseExcel);
+
+router.get("/export/roomwise", auth, authorizeRoles("admin", "staff"), exportRoomWiseExcel);
 
 
 export default router;

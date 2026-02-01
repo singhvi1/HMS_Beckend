@@ -11,8 +11,9 @@ import LeaveRequest from "../models/leave_request.model.js";
 import puppeteer from "puppeteer";
 import { studentProfileHTML } from "../utils/templates.js";
 import { deleteMulter } from "../middlewares/multer.middleware.js";
-import { validateRoomInput, validateStudentCreate, validateVerificationIds } from "../utils/helperFunctions.js";
-
+import { formatDate, validateRoomInput, validateStudentCreate, validateVerificationIds } from "../utils/helperFunctions.js";
+import QRCode from "qrcode";
+import ExcelJS from "exceljs";
 
 //new or old room with new student
 export const createUserStudent = async (req, res) => {
@@ -70,6 +71,7 @@ export const createUserStudent = async (req, res) => {
         [{
           block: block,
           room_number,
+          occupied_count: 1,
           capacity: capacity ?? 1
         }],
         { session }
@@ -541,23 +543,48 @@ export const downloadStudentDocument = async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: "Student not found" });
     }
+    const qrPayload = {
+      sid: student?.sid,
+      name: student?.user_id?.full_name,
+      email: student?.user_id?.email,
+      phone: student?.user_id?.phone,
+      branch: student?.branch,
+      room: (student?.room_id?.block + " " + student?.room_id?.room_number) || null,
+      address: student?.permanent_address,
+      StudentId: student?.verificationIds?.studentId?.idType + "- " + student?.verificationIds?.studentId?.idValue || null,
+      guardian_name: student?.guardian_name || null,
+      guardian_contact: student?.guardian_contact || null,
+      verifiedAt: formatDate(student?.updatedAt),
+      v: 1
+    };
 
-    const html = studentProfileHTML(student);
+    const qrCodeDataUrl = await QRCode.toDataURL(
+      JSON.stringify(qrPayload),
+      {
+        errorCorrectionLevel: "H",
+        margin: 1,
+        width: 140
+      }
+    );
+
+    const html = studentProfileHTML(student, qrCodeDataUrl);
 
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: "new",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
-        "--single-process",
       ],
     });
 
 
     const page = await browser.newPage();
+    await page.emulateMediaType("screen");
+
     await page.setContent(html, { waitUntil: "networkidle0" });
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -578,6 +605,162 @@ export const downloadStudentDocument = async (req, res) => {
     res.status(500).json({ message: "Failed to generate PDF" });
   }
 }
+
+export const exportAccountantExcel = async (_req, res) => {
+  const students = await Student.find()
+    .populate("user_id", "full_name phone")
+    .select("sid verificationIds verification_status");
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Payments");
+
+  sheet.columns = [
+    { header: "SID", key: "sid", width: 15 },
+    { header: "Student Name", key: "name", width: 25 },
+    { header: "Phone", key: "phone", width: 15 },
+    { header: "Payment ID", key: "paymentId", width: 30 },
+    { header: "Payment Method", key: "method", width: 20 },
+    { header: "Payment Date", key: "paymentDate", width: 20 },
+    { header: "Verification Status", key: "verification", width: 20 },
+  ];
+
+  students.forEach(s => {
+    sheet.addRow({
+      sid: s.sid,
+      name: s.user_id?.full_name,
+      phone: s.user_id?.phone,
+      paymentId: s.verificationIds?.paymentId?.idValue,
+      method: s.verificationIds?.paymentId?.idType,
+      paymentDate: s.verificationIds?.paymentId?.paymentDate,
+      verification: s.verification_status,
+    });
+  });
+
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=accountant-payments.xlsx"
+  );
+  await workbook.xlsx.write(res);
+  res.end();
+};
+
+export const exportStudentWiseExcel = async (req, res) => {
+  try {
+    const students = await Student.find({
+      allotment_status: "ALLOTTED",
+    })
+      .populate("user_id", "full_name phone email")
+      .select(
+        "sid block room_number permanent_address guardian_name guardian_contact"
+      )
+      .sort({ block: 1, room_number: 1 });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Student Wise");
+
+    sheet.columns = [
+      { header: "SID", key: "sid", width: 15 },
+      { header: "Student Name", key: "name", width: 25 },
+      { header: "Room No", key: "room", width: 15 },
+      { header: "Phone", key: "phone", width: 15 },
+      { header: "Permanent Address", key: "address", width: 35 },
+      { header: "Guardian Name", key: "guardianName", width: 25 },
+      { header: "Guardian Contact", key: "guardianPhone", width: 15 },
+    ];
+
+    students.forEach((s) => {
+      sheet.addRow({
+        sid: s.sid,
+        name: s.user_id?.full_name,
+        room: s.block && s.room_number
+          ? `${s.block.toUpperCase()}-${s.room_number}`
+          : "Not Assigned",
+        phone: s.user_id?.phone,
+        address: s.permanent_address,
+        guardianName: s?.guardian_name,
+        guardianPhone: s?.guardian_contact,
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=student-wise-allotment.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Student-wise Excel export failed" });
+  }
+};
+
+
+export const exportRoomWiseExcel = async (req, res) => {
+  try {
+    const rooms = await Room.find()
+      .populate({
+        path: "occupants",
+        populate: {
+          path: "user_id",
+          select: "full_name phone",
+        },
+      })
+      .sort({ block: 1, room_number: 1 });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Room Wise");
+
+    sheet.columns = [
+      { header: "Block", key: "block", width: 10 },
+      { header: "Room No", key: "room", width: 15 },
+      { header: "SID", key: "sid", width: 15 },
+      { header: "Student Name", key: "name", width: 25 },
+      { header: "Phone", key: "phone", width: 15 },
+    ];
+
+    rooms.forEach((room) => {
+      if (!room.occupants.length) {
+        sheet.addRow({
+          block: room.block,
+          room: room.room_number,
+          sid: "-",
+          name: "VACANT",
+          phone: "-",
+        });
+      } else {
+        room.occupants.forEach((student) => {
+          sheet.addRow({
+            block: room.block,
+            room: room.room_number,
+            sid: student.sid,
+            name: student.user_id?.full_name,
+            phone: student.user_id?.phone,
+          });
+        });
+      }
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=room-wise.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Room-wise Excel export failed" });
+  }
+};
 
 export const deleteStudentProfile = async (req, res) => {
   const session = await mongoose.startSession();

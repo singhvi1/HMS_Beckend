@@ -78,6 +78,10 @@ const studentSchema = new Schema(
           required: true,
           trim: true,
         },
+        paymentDate: {
+          type: Date,
+          required: true
+        }
       },
     },
 
@@ -133,8 +137,6 @@ const studentSchema = new Schema(
       default: "PENDING",
       index: true
     }
-
-
   },
   {
     timestamps: true
@@ -157,6 +159,7 @@ studentSchema.pre("save", async function () {
       this.allotment_status = "PENDING";
       return
     }
+
     if (this.allotment_status === "ALLOTTED" && this.verification_status !== "VERIFIED") {
       throw new Error("Cannot allot room without verification");
     }

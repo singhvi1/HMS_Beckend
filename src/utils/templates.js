@@ -1,22 +1,17 @@
-export const studentProfileHTML = (student) => {
+import { formatDate } from "./helperFunctions.js";
+import logger from "./logger.js";
+
+export const studentProfileHTML = (student,qrCodeDataUrl) => {
   // Logic for occupancy type
+  logger.info("Generating HTML template for student", { student: student });
   const occupancyType =
     student.room_id?.occupied_count === 1 ? "Single"
       : student.room_id?.occupied_count === 2 ? "Double"
         : student.room_id?.occupied_count === 3 ? "Triple"
           : "Not Assigned";
+  
 
-  // Date formatting helper
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-  };
-
-  // Image Logic: Use student image or a default placeholder
-  const studentPhoto = student?.profile_photo || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
-
+  const studentPhoto = student?.profile_photo?.url || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
   return `
 <!DOCTYPE html>
 <html>
@@ -24,31 +19,35 @@ export const studentProfileHTML = (student) => {
   <meta charset="UTF-8" />
   <title>Hostel Verification Record</title>
   <style>
-    @page { margin: 20px; }
+    @page {
+      size: A4 portrait;
+      margin: 15px; 
+    }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #333;
-      line-height: 1.6;
+      line-height: 1.4;
       max-width: 800px;
       margin: 0 auto;
       background-color: #fff;
-      padding: 20px;
+      padding: 0;
     }
 
     /* Header Styles */
     .header {
+      position: relative;
       display: flex;
       align-items: center;
       border-bottom: 2px solid #800000;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
     }
     .logo-container {
-      flex: 0 0 100px;
+      flex: 0 0 80px;
       margin-right: 20px;
     }
     .logo-container img {
-      width: 100px;
+      width: 80px;
       height: auto;
       object-fit: contain;
     }
@@ -56,7 +55,7 @@ export const studentProfileHTML = (student) => {
       flex: 1;
     }
     .college-name {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
       color: #800000;
       margin: 0;
@@ -71,7 +70,7 @@ export const studentProfileHTML = (student) => {
 
     /* Section Styles */
     .section {
-      margin-bottom: 25px;
+      margin-bottom: 20px;
       border: 1px solid #e0e0e0;
       border-radius: 6px;
       overflow: hidden;
@@ -161,6 +160,24 @@ export const studentProfileHTML = (student) => {
       font-size: 13px;
       font-weight: bold;
     }
+    .qr-box {
+      position: absolute;
+      z-index: 10;
+      top: 0px;
+      right: 10px;
+      text-align: center;
+    }
+
+    .qr-box img {
+      width: 90px;
+      height: 90px;
+    }
+
+    .qr-label {
+      font-size: 10px;
+      color: #555;
+      margin-top: 2px;
+    }
 
     /* Print Optimizations */
     @media print {
@@ -181,6 +198,11 @@ export const studentProfileHTML = (student) => {
       <div class="doc-title">Hostel Student Verification Record</div>
       <div style="font-size: 12px; color: #777; margin-top: 4px;">(Deemed to be University), Chandigarh</div>
     </div>
+    <div class="qr-box">
+      <img src="${qrCodeDataUrl}" alt="Student Verification QR" />
+      <div class="qr-label">Scan to Verify</div>
+    </div>
+
   </div>
 
   <div class="section">
@@ -212,6 +234,10 @@ export const studentProfileHTML = (student) => {
           <span class="label">Branch / Stream</span>
           <span class="value">${student.branch || '-'}</span>
         </div>
+        <div class="field-group">
+          <span class="label">StudentId (${student?.verificationIds?.studentId?.idType || 'Addhar'})</span>
+          <span class="value">${student?.verificationIds?.studentId?.idValue || '-'}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -227,7 +253,12 @@ export const studentProfileHTML = (student) => {
         <span class="label">Guardian Contact</span>
         <span class="value">${student.guardian_contact || '-'}</span>
       </div>
-      <div class="field-group" style="grid-column: span 2;">
+      
+      <div class="field-group">
+        <span class="label">GuardianId (${student?.verificationIds?.guardianId?.idType || 'Addhar'})</span>
+        <span class="value">${student?.verificationIds?.guardianId?.idValue || '-'}</span>
+      </div>
+      <div class="field-group">
         <span class="label">Permanent Address</span>
         <span class="value">${student.permanent_address || '-'}</span>
       </div>
@@ -239,7 +270,7 @@ export const studentProfileHTML = (student) => {
     <div class="info-grid-full">
       <div class="field-group">
         <span class="label">Block & Room</span>
-        <span class="value">${student.room_id?.block || "N/A"} - ${student.room_id?.room_number || "N/A"}</span>
+        <span class="value">${student?.room_id?.block.toUpperCase() || "N/A"} - ${student?.room_id?.room_number || "N/A"}</span>
       </div>
       <div class="field-group">
         <span class="label">Room Occupancy</span>
@@ -247,8 +278,14 @@ export const studentProfileHTML = (student) => {
       </div>
       <div class="field-group">
         <span class="label">Allotment Status</span>
-        <span class="value" style="color: ${student.allotment_status === 'Allocated' ? 'green' : 'red'}; font-weight:bold;">
-          ${student.allotment_status || '-'}
+        <span class="value" style="color: ${student?.allotment_status === 'ALLOTTED' ? 'green' : 'red'}; font-weight:bold;">
+          ${student?.allotment_status || '-'}
+        </span>
+      </div>
+      <div class="field-group">
+        <span class="label">Hostel Name</span>
+        <span class="value">
+          Himalayan Hostel
         </span>
       </div>
     </div>
@@ -258,9 +295,18 @@ export const studentProfileHTML = (student) => {
     <div class="section-title">Office Verification</div>
     <div class="info-grid-full">
       <div class="field-group">
+        <span class="label">Fees Payment</span>
+        <span class="value">${student?.verificationIds?.paymentId?.idValue || 'NotFound'}</span>
+      </div>
+      <div class="field-group">
+        <span class="label">Payment Date</span>
+        <span class="value">${student?.verificationIds?.paymentId?.idType || 'NotFound'} on ${formatDate(student.updatedAt)}</span>
+      </div>
+      <div class="field-group">
         <span class="label">Verification Status</span>
         <span class="value">${student.verification_status || 'Pending'}</span>
       </div>
+      
       <div class="field-group">
         <span class="label">Date Verified</span>
         <span class="value">${formatDate(student.updatedAt)}</span>

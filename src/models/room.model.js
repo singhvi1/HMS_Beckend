@@ -41,6 +41,7 @@ const roomSchema = new Schema(
         },
         occupied_count: {
             type: Number,
+            min: 0,
             default: 0
         },
 
@@ -61,9 +62,18 @@ const roomSchema = new Schema(
 
 roomSchema.index({ block: 1, room_number: 1 }, { unique: true });
 
-
+roomSchema.static.setOccupiedCount = async function (roomId, session = null) {
+    const Student = mongoose.model("Student");
+    const studentsInRoom = await Student.countDocuments(
+        { room_id: roomId }).session(session);
+    await this.findByIdAndUpdate(
+        roomId,
+        { occupied_count: studentsInRoom },
+        { session }
+    );
+}
 roomSchema.pre("save", function () {
-    if (this.occupied_count > this.capacity) {
+    if (this.occupied_count > this.capacity || this.occupied_count < 0) {
         throw new Error("occupied_count exceeds capacity");
     }
 
@@ -97,6 +107,8 @@ roomSchema.pre("findOneAndUpdate", async function () {
 
     if (newOccupied > room.capacity) {
         throw new Error("Room capacity exceeded");
+    } else if (newOccupied < 0) {
+        throw new Error("Occupied count cannot be negative");
     }
 
     update.$set = update.$set || {};
