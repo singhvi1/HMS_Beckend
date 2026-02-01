@@ -6,6 +6,7 @@ import {
   exportAccountantExcel,
   exportStudentWiseExcel,
   exportRoomWiseExcel,
+  exportAllotmentExcel,
 } from "../controllers/student_profile.controller.js";
 import { studentMulter } from "../middlewares/multer.middleware.js";
 
@@ -46,6 +47,8 @@ router.get("/export/accountant", auth, authorizeRoles("admin", "staff"), exportA
 router.get("/export/studentwise", auth, authorizeRoles("admin", "staff"), exportStudentWiseExcel);
 
 router.get("/export/roomwise", auth, authorizeRoles("admin", "staff"), exportRoomWiseExcel);
+
+router.get("/export/allotment", auth, authorizeRoles("admin", "staff"), exportAllotmentExcel);
 
 
 export default router;

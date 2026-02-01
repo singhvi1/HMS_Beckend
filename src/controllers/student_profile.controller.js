@@ -644,7 +644,7 @@ export const exportAccountantExcel = async (_req, res) => {
   res.end();
 };
 
-export const exportStudentWiseExcel = async (req, res) => {
+export const exportStudentWiseExcel = async (_req, res) => {
   try {
     const students = await Student.find({
       allotment_status: "ALLOTTED",
@@ -700,7 +700,7 @@ export const exportStudentWiseExcel = async (req, res) => {
 };
 
 
-export const exportRoomWiseExcel = async (req, res) => {
+export const exportRoomWiseExcel = async (_req, res) => {
   try {
     const rooms = await Room.find()
       .populate({
@@ -761,6 +761,93 @@ export const exportRoomWiseExcel = async (req, res) => {
     res.status(500).json({ message: "Room-wise Excel export failed" });
   }
 };
+
+export const exportAllotmentExcel = async (req, res) => {
+  try {
+    const { phase = 'both', status = "all", verification_status = "all" } = req.query;
+    const requestQuery = {};
+    if (phase !== 'both') {
+      requestQuery.allotment_phase = phase.toUpperCase();
+    }
+    if (status !== "all") {
+      requestQuery.allotment_status = status.toUpperCase();
+    }
+    if (verification_status !== "all") {
+      requestQuery.verification_status = verification_status.toUpperCase();
+    }
+    const requests = await RoomRequest.find(requestQuery)
+      .populate({
+        path: "student_id",
+        match: verification_status !== "all" ? { verification_status: verification_status.toUpperCase() } : {},
+        populate: {
+          path: "user_id",
+          select: "full_name email phone"
+        }
+      })
+      .populate("requested_room_id", " block room_number occupied_count")
+      .populate("allocated_room_id", " block room_number  occupied_count")
+      .sort({ createdAt: -1 });
+
+    const validRequests = requests.filter(r => r.student_id !== null);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Allotment Requests");
+
+    sheet.columns = [
+      { header: "SID", key: "sid", width: 15 },
+      { header: "Student Name", key: "name", width: 25 },
+      { header: "Email", key: "email", width: 25 },
+      { header: "Phone", key: "phone", width: 15 },
+      { header: "Permanent Address", key: "address", width: 35 },
+      { header: "Guardian Name", key: "guardianName", width: 25 },
+      { header: "Guardian Contact", key: "guardianPhone", width: 15 },
+      { header: "Phase", key: "phase", width: 10 },
+      { header: "Requested Room", key: "requestedRoom", width: 20 },
+      { header: "Allocated Room", key: "allocatedRoom", width: 20 },
+      { header: "Occupancy", key: "occupancy", width: 15 },
+      { header: "Request Status", key: "status", width: 15 },
+      { header: "Processed At", key: "processedAt", width: 20 },
+    ];
+
+    validRequests.forEach(r => {
+      const s = r.student_id;
+      const room = r.allocated_room_id;
+      const requestedRoom = r.requested_room_id;
+      sheet.addRow({
+        sid: s?.sid,
+        name: s?.user_id?.full_name,
+        email: s?.user_id?.email,
+        phone: s?.user_id?.phone,
+        phase: r?.phase,
+        requestedRoom: requestedRoom?.room_number && requestedRoom?.block
+          ? `${requestedRoom.block.toUpperCase()}-${requestedRoom.room_number}`
+          : "N/A",
+        allocatedRoom: room ? `${room.block.toUpperCase()}-${room.room_number}` : "N/A",
+        occupancy: room?.occupied_count ?? requestedRoom?.occupied_count ?? "N/A",
+        status: r?.status,
+        address: s?.permanent_address,
+        guardianName: s?.guardian_name,
+        guardianPhone: s?.guardian_contact,
+        processedAt: r.processed_at ? formatDate(r.processed_at) : "N/A",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=allotment-requests.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Allotment requests Excel export failed" });
+  }
+}
 
 export const deleteStudentProfile = async (req, res) => {
   const session = await mongoose.startSession();

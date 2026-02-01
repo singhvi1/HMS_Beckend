@@ -33,6 +33,7 @@ const roomRequestSchema = new Schema(
       default: "PENDING",
       index: true
     },
+    
     processed_at: {
       type: Date,
     }
